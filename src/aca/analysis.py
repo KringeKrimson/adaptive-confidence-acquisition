@@ -7,7 +7,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import brier_score_loss, log_loss, roc_auc_score
 from .data import validate_splits
-from .routing import Policy, random_replay, replay, summarize, tune_policies
+from .routing import Policy, random_budget_probabilities, random_replay, replay, summarize, tune_policies
 from .storage import atomic_json, fingerprint, load_records, read_json
 
 
@@ -33,6 +33,8 @@ def bootstrap_delta(a, b, seed=4901, repeats=1000):
 
 def analyze(root, penalties=(0., .025, .05, .1, .2, .4, .8, 1.6), random_seeds=20):
     root = Path(root)
+    if random_seeds < 1:
+        raise ValueError('At least one random seed is required')
     queries = read_json(root/'queries.json')['queries']
     validate_splits(queries)
     split = np.array([q['split'] for q in queries])
@@ -92,16 +94,18 @@ def analyze(root, penalties=(0., .025, .05, .1, .2, .4, .8, 1.6), random_seeds=2
         at = replays['adaptive']
         bv = float(np.dot(av['acquire'],v['ic_seconds']))
         bt = float(np.dot(at['acquire'],t['ic_seconds']))
-        random_runs = []
+        random_runs, random_policies = [], []
         for seed in range(random_seeds):
+            pv = random_budget_probabilities(v['ids'],v['ic_seconds'],bv,seed)
             scored = []
             for cheap_t in [-.01,*np.linspace(0,1,11),1.01]:
                 for ic_t in [-.01,*np.linspace(0,1,11),1.01]:
-                    r = random_replay(v,cheap_t,ic_t,bv,seed)
+                    r = random_replay(v,cheap_t,ic_t,bv,seed,probabilities=pv)
                     m = summarize(r)
                     scored.append((m['accuracy']-point['penalty']*m['mean_seconds']/point['reference_seconds'],
                                    -m['mean_seconds'],float(cheap_t),float(ic_t)))
             _,_,cheap_t,ic_t = max(scored)
+            random_policies.append(dict(seed=seed,cheap_threshold=cheap_t,ic_threshold=ic_t))
             rr = random_replay(t,cheap_t,ic_t,bt,seed)
             random_runs.append(rr)
             if not np.isclose(np.dot(rr['acquire'],t['ic_seconds']),bt):
@@ -110,6 +114,7 @@ def analyze(root, penalties=(0., .025, .05, .1, .2, .4, .8, 1.6), random_seeds=2
         rm = summarize(random_mean)
         results.append(dict(method='random-ic-budget-matched',penalty=point['penalty'],**rm))
         details.append(dict(penalty=point['penalty'],ic_budget_seconds=bt, random_seeds=random_seeds,
+            random_policies=random_policies,validation_ic_budget_seconds=bv,
             random_accuracy_seed_std=float(np.std([np.mean(r['correct']) for r in random_runs])),
             adaptive_minus_random_accuracy=float(np.mean(at['correct']-random_mean['correct'])),
             paired_bootstrap_95=bootstrap_delta(at['correct'],random_mean['correct']),

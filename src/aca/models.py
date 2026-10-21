@@ -1,7 +1,6 @@
 """Sequential batch-one inference with synchronized, incremental timings."""
 import gc
 import time
-import numpy as np
 import torch
 from .ic import aggregate_ic, ic_messages, project_p_yes, yes_no_ids
 

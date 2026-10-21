@@ -11,12 +11,16 @@ import zipfile
 
 def build(destination, owner, mode='pilot', resume_kernel=None):
     root = Path(__file__).resolve().parents[1]
+    if subprocess.check_output(['git','status','--porcelain','--','src','pyproject.toml','kaggle/runner.py'],cwd=root).strip():
+        raise RuntimeError('Commit inference source before building a reproducible bundle')
     files = subprocess.check_output(['git','ls-files','-z'],cwd=root).decode().split('\0')
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer,'w',zipfile.ZIP_DEFLATED) as archive:
         for name in files:
             if name and (name.startswith('src/') or name in ['pyproject.toml','kaggle/runner.py']):
-                archive.writestr(name,(root/name).read_bytes())
+                content = subprocess.check_output(['git','show',f'HEAD:{name}'],cwd=root)
+                archive.writestr(zipfile.ZipInfo(name,date_time=(2026,1,1,0,0,0)),content,
+                                 compress_type=zipfile.ZIP_DEFLATED)
     data = buffer.getvalue()
     sha = hashlib.sha256(data).hexdigest()
     commit = subprocess.check_output(['git','rev-parse','HEAD'],cwd=root).decode().strip()

@@ -1,6 +1,5 @@
 import importlib.metadata
 import platform
-import subprocess
 import time
 from pathlib import Path
 import torch
@@ -11,8 +10,15 @@ from .storage import atomic_json, bind_manifest, fingerprint, load_records, read
 
 
 def runtime():
+    packages = {}
+    for p in ['torch', 'transformers', 'datasets', 'numpy', 'accelerate',
+              'bitsandbytes', 'tokenizers', 'safetensors', 'pyarrow']:
+        try:
+            packages[p] = importlib.metadata.version(p)
+        except importlib.metadata.PackageNotFoundError:
+            packages[p] = None
     return dict(python=platform.python_version(), packages={
-        p: importlib.metadata.version(p) for p in ['torch', 'transformers', 'datasets', 'numpy', 'accelerate']},
+        **packages},
         cuda=torch.version.cuda, gpu=torch.cuda.get_device_name(0) if torch.cuda.is_available() else None)
 
 

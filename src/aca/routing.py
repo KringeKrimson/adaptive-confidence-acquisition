@@ -72,8 +72,9 @@ def random_budget_probabilities(ids, ic_seconds, budget, seed):
     return probabilities
 
 
-def random_replay(d, cheap_threshold, ic_threshold, budget, seed):
-    p = random_budget_probabilities(d['ids'], d['ic_seconds'], budget, seed)
+def random_replay(d, cheap_threshold, ic_threshold, budget, seed, probabilities=None):
+    p = (random_budget_probabilities(d['ids'], d['ic_seconds'], budget, seed)
+         if probabilities is None else probabilities)
     base = replay(Policy('cheap-only', cheap_threshold), d)
     ic_strong = d['ic'] < ic_threshold
     acquired_correct = np.where(ic_strong, d['strong_correct'], d['small_correct'])
