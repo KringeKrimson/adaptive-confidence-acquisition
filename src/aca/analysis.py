@@ -1,4 +1,6 @@
 import csv
+import importlib.metadata
+import platform
 import time
 from pathlib import Path
 import numpy as np
@@ -77,7 +79,15 @@ def analyze(root, penalties=(0., .025, .05, .1, .2, .4, .8, 1.6), random_seeds=2
     scaler, classifier = probe.steps[0][1], probe.steps[1][1]
     atomic_json(root/'probe.json', dict(C=c, mean=scaler.mean_.tolist(), scale=scaler.scale_.tolist(),
         coefficients=classifier.coef_.tolist(), intercept=classifier.intercept_.tolist(),
-        training_seconds=training_seconds))
+        training_seconds=training_seconds, training_query_hashes=[fingerprint(q) for q in queries if q['split']=='train']))
+    atomic_json(root/'probe_scores.json',dict(
+        probe_hash=fingerprint(read_json(root/'probe.json')),
+        runtime=dict(machine=platform.machine(),processor=platform.processor(),
+                     python=platform.python_version(),
+                     sklearn=importlib.metadata.version('scikit-learn')),
+        rows=[dict(id=q['id'],split=q['split'],query_hash=fingerprint(q),
+                   probability=float(p),elapsed_seconds=float(sec))
+              for q,p,sec in zip(queries,probabilities,scoring_times)]))
     results, details = [], []
     for kind in ['small-only','strong-only']:
         results.append(dict(method=kind, penalty=None, **summarize(replay(Policy(kind),t))))

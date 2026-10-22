@@ -2,7 +2,7 @@
 import hashlib
 import re
 from pathlib import Path
-from .storage import atomic_json, read_json
+from .storage import atomic_json, fingerprint, read_json
 
 DATASET = 'trivia_qa'
 CONFIG = 'rc.nocontext'
@@ -31,12 +31,18 @@ def validate_splits(queries):
         questions.add(key)
 
 
-def prepare(root, train=0, validation=0, test=32, seed=4901, revision=None):
+def prepare(root, train=0, validation=0, test=32, seed=4901, revision=None, exclude_manifest=None):
     from datasets import load_dataset
     from huggingface_hub import HfApi
     path = Path(root) / 'queries.json'
+    excluded = read_json(exclude_manifest) if exclude_manifest else None
+    excluded_queries = excluded['queries'] if excluded else []
+    if excluded:
+        if revision and revision != excluded['revision']:
+            raise ValueError('Excluded pilot and research must use the same dataset revision')
+        revision = excluded['revision']
     requested = dict(train=train, validation=validation, test=test, seed=seed,
-                     dataset=DATASET, config=CONFIG)
+                     dataset=DATASET, config=CONFIG, excluded_queries_hash=fingerprint(excluded_queries))
     if min(train, validation, test) < 0 or train + validation + test == 0:
         raise ValueError('Sample counts must be nonnegative and total positive')
     if path.exists():
@@ -46,7 +52,9 @@ def prepare(root, train=0, validation=0, test=32, seed=4901, revision=None):
         validate_splits(saved['queries'])
         return saved
     revision = HfApi().dataset_info(DATASET, revision=revision).sha
-    queries, seen_ids, seen_questions = [], set(), set()
+    queries = []
+    seen_ids = {q['id'] for q in excluded_queries}
+    seen_questions = {question_key(q['question']) for q in excluded_queries}
     remaining = dict(train=train, validation=validation, test=test)
     # Streaming avoids downloading the unused evidence corpus. Fixed shuffle buffer.
     for source in ['train', 'validation']:

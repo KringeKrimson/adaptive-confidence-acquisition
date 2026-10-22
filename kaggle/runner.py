@@ -22,7 +22,11 @@ def run(mode='pilot', resume_from=None):
         main(['prepare','--out',str(root),'--test','32'])
         main(['collect','--out',str(root)])
     elif mode == 'research':
-        main(['prepare','--out',str(root),'--train','1024','--validation','256','--test','512'])
+        # Reserve the deterministic pilot even when this is a fresh Kaggle session.
+        pilot = root.parent / 'pilot'
+        main(['prepare','--out',str(pilot),'--test','32'])
+        main(['prepare','--out',str(root),'--train','1024','--validation','256','--test','512',
+              '--exclude-manifest',str(pilot/'queries.json')])
         main(['collect','--out',str(root),'--stages','small','strong','ic'])
         main(['analyze','--out',str(root)])
     else:

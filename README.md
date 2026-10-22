@@ -26,8 +26,8 @@ For Kaggle, after committing source:
 ```sh
 python scripts/kaggle_bundle.py --owner sushobhanrai
 kaggle kernels push -p outputs/kaggle-bundle
-kaggle kernels status sushobhanrai/adaptive-confidence-pilot
-kaggle kernels output sushobhanrai/adaptive-confidence-pilot -p outputs/downloaded
+kaggle kernels status sushobhanrai/adaptive-confidence-acquisition-pilot
+kaggle kernels output sushobhanrai/adaptive-confidence-acquisition-pilot -p outputs/downloaded
 ```
 
 Alternatively import `outputs/kaggle-bundle/experiment.ipynb` into Kaggle.
@@ -49,14 +49,16 @@ to survive destruction of the whole session. Use bounded jobs and saved versions
 After inspecting the pilot's predictions/truncation rate:
 
 ```sh
-aca prepare --out outputs/research --train 1024 --validation 256 --test 512
+aca prepare --out outputs/research --train 1024 --validation 256 --test 512 --exclude-manifest outputs/pilot/queries.json
 aca collect --out outputs/research --stages small strong ic
 aca analyze --out outputs/research
 ```
 
 Or build the Kaggle bundle with `--mode research`. This is a separate dataset
-manifest; the pilot is a debugging sample, not evidence used to tune policies.
-Inspect lexical overlap before reporting final results if changing sample sizes.
+manifest; inspected pilot IDs and normalized questions are excluded from all
+research splits. The research Kaggle runner reserves the deterministic pilot
+before sampling, including in a fresh session. If changing pilot seed or dataset
+revision, carry its actual manifest into that session as well.
 
 ## Method and accounting
 
@@ -119,7 +121,8 @@ Inspect lexical overlap before reporting final results if changing sample sizes.
 
 Outputs include `queries.json`, immutable inference settings/model revisions,
 per-stage per-query records, `pilot_summary.json`, `predictions.json`, portable
-`probe.json`, validation-selected policies, `analysis.json`, `accuracy_cost.csv`
+`probe.json`, per-query CPU probe times in `probe_scores.json`, validation-selected
+policies, `analysis.json`, `accuracy_cost.csv`
 and `accuracy_cost.png`. Experiment outputs, weights, tokens and environments
 are ignored by Git.
 

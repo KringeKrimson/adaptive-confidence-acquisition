@@ -38,6 +38,10 @@ def test_cached_end_to_end_analysis(tmp_path):
     assert (tmp_path/'accuracy_cost.csv').exists()
     assert read_json(tmp_path/'selected_policies.json')['selection_split']=='validation'
     assert len(read_json(tmp_path/'probe.json')['coefficients'][0])==2
+    scores=read_json(tmp_path/'probe_scores.json')
+    assert len(scores['rows'])==24
+    assert all(row['elapsed_seconds']>0 for row in scores['rows'])
+    assert scores['probe_hash']==fingerprint(read_json(tmp_path/'probe.json'))
 
 
 def test_interrupted_collection_resumes_completed_queries(tmp_path, monkeypatch):

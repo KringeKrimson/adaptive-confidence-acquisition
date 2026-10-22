@@ -10,6 +10,8 @@ dist/
 !.env.example
 *token*
 *credential*
+*secret*
+.kaggle/
 kaggle.json
 kernel-metadata.json
 outputs/

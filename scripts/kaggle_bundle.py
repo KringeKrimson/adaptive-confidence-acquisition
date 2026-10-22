@@ -42,17 +42,17 @@ runpy.run_path('/kaggle/working/aca-source/kaggle/runner.py', run_name='__main__
     if resume_kernel:
         execution = f"os.environ['ACA_RESUME_FROM'] = '/kaggle/input/{resume_kernel}/outputs/{mode}'\n" + execution
         execution = 'import os\n' + execution
-    cells = [dict(cell_type='markdown',metadata={},source=[
+    cells = [dict(id='description',cell_type='markdown',metadata={},source=[
         '# Adaptive Confidence Acquisition\n',
         f'Source commit `{commit}`. Mode: **{mode}**. Requires GPU, Internet and HF_TOKEN secret with Llama access.\n',
         'Save & Run All to retain per-query outputs. Experimental logic lives in Python modules.'])]
-    for code in [extraction,installation,execution]:
-        cells.append(dict(cell_type='code',metadata={},execution_count=None,outputs=[],source=code.splitlines(True)))
+    for cell_id,code in [('extract',extraction),('install',installation),('run',execution)]:
+        cells.append(dict(id=cell_id,cell_type='code',metadata={},execution_count=None,outputs=[],source=code.splitlines(True)))
     destination = Path(destination)
     destination.mkdir(parents=True,exist_ok=True)
     (destination/'experiment.ipynb').write_text(json.dumps(dict(cells=cells,nbformat=4,nbformat_minor=5,
         metadata=dict(kernelspec=dict(display_name='Python 3',language='python',name='python3'))),indent=1))
-    slug = f'adaptive-confidence-{mode}'
+    slug = f'adaptive-confidence-acquisition-{mode}'
     metadata = dict(id=f'{owner}/{slug}',title=f'Adaptive Confidence Acquisition {mode}',
         code_file='experiment.ipynb',language='python',kernel_type='notebook',is_private=True,
         enable_gpu=True,enable_internet=True,dataset_sources=[],competition_sources=[],
