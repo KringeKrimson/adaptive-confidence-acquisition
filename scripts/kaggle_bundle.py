@@ -33,15 +33,17 @@ zipfile.ZipFile(io.BytesIO(payload)).extractall(source)
 print('Source commit: {commit}')
 '''
     installation = '''import subprocess, sys
-subprocess.check_call([sys.executable, '-m', 'pip', 'install', '-q', '/kaggle/working/aca-source[gpu]'])
+print('Kaggle Python:', sys.version, flush=True)
+subprocess.check_call([sys.executable, '-m', 'pip', 'install', '/kaggle/working/aca-source[gpu]'])
 '''
-    execution = f'''import os, runpy
-os.environ['ACA_MODE'] = {mode!r}
-runpy.run_path('/kaggle/working/aca-source/kaggle/runner.py', run_name='__main__')
+    execution = f'''import os, subprocess, sys
+experiment_env = dict(os.environ, ACA_MODE={mode!r}, PYTHONUNBUFFERED='1')
+# A fresh process avoids notebook imports retained across dependency installation.
+subprocess.check_call([sys.executable, '/kaggle/working/aca-source/kaggle/runner.py'], env=experiment_env)
 '''
     if resume_kernel:
-        execution = f"os.environ['ACA_RESUME_FROM'] = '/kaggle/input/{resume_kernel}/outputs/{mode}'\n" + execution
-        execution = 'import os\n' + execution
+        execution = execution.replace('# A fresh process',
+            f"experiment_env['ACA_RESUME_FROM'] = '/kaggle/input/{resume_kernel}/outputs/{mode}'\n# A fresh process")
     cells = [dict(id='description',cell_type='markdown',metadata={},source=[
         '# Adaptive Confidence Acquisition\n',
         f'Source commit `{commit}`. Mode: **{mode}**. Phi-3-mini → Qwen2.5-7B-Instruct. Requires GPU and Internet; no Hugging Face token or gated access.\n',

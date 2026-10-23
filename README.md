@@ -51,7 +51,9 @@ kaggle kernels output sushobhanrai/adaptive-confidence-acquisition-pilot -p outp
 Alternatively import `outputs/kaggle-bundle/experiment.ipynb` into Kaggle.
 Enable Internet and select a GPU. No notebook secrets are required.
 The generated notebook only extracts the source snapshot, installs the package,
-and calls `kaggle/runner.py`. It embeds no credentials or model weights and
+and starts `kaggle/runner.py` in a fresh Python process. This prevents retained
+notebook imports from mixing NumPy binary versions after installation, including
+on Kaggle's Python 3.13 image. It embeds no credentials or model weights and
 does not need GitHub credentials for the private repository. Use **Save & Run
 All** to retain outputs after the session.
 

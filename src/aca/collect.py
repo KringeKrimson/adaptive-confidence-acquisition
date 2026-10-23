@@ -12,7 +12,7 @@ from .storage import atomic_json, bind_manifest, fingerprint, load_records, read
 def runtime():
     packages = {}
     for p in ['torch', 'transformers', 'datasets', 'numpy', 'accelerate',
-              'bitsandbytes', 'tokenizers', 'safetensors', 'pyarrow']:
+              'bitsandbytes', 'tokenizers', 'safetensors', 'pyarrow', 'pandas']:
         try:
             packages[p] = importlib.metadata.version(p)
         except importlib.metadata.PackageNotFoundError:
