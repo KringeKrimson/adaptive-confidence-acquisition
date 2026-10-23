@@ -13,7 +13,15 @@ def run(mode='pilot', resume_from=None):
     root = Path('/kaggle/working/outputs') / output_name
     if resume_from:
         shutil.copytree(resume_from,root,dirs_exist_ok=True)
-    if mode == 'qwen15screen':
+    if mode == 'confirmatory':
+        from aca.confirmatory import run as confirmatory_run
+        try:
+            confirmatory_run(root,Path(__file__).resolve().parents[1]/'results'/'qwen15_methods.json')
+        except Exception as error:
+            from aca.storage import atomic_json
+            atomic_json(root/'run_failure.json',dict(type=type(error).__name__,error=str(error)))
+            raise
+    elif mode == 'qwen15screen':
         from aca.prospective import run as prospective_run
         try:
             prospective_run(root)

@@ -17,7 +17,8 @@ def build(destination, owner, mode='pilot', resume_kernel=None):
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer,'w',zipfile.ZIP_DEFLATED) as archive:
         for name in files:
-            if name and (name.startswith('src/') or name in ['pyproject.toml','kaggle/runner.py']):
+            if name and (name.startswith('src/') or name in ['pyproject.toml','kaggle/runner.py'] or
+                         (mode=='confirmatory' and name in ['results/qwen15_methods.json','results/confirmatory_protocol.json'])):
                 content = subprocess.check_output(['git','show',f'HEAD:{name}'],cwd=root)
                 archive.writestr(zipfile.ZipInfo(name,date_time=(2026,1,1,0,0,0)),content,
                                  compress_type=zipfile.ZIP_DEFLATED)
@@ -45,8 +46,9 @@ subprocess.check_call([sys.executable, '/kaggle/working/aca-source/kaggle/runner
         output_name = 'research14b' if mode == 'viability14b' else mode
         execution = execution.replace('# A fresh process',
             f"experiment_env['ACA_RESUME_FROM'] = '/kaggle/input/{resume_kernel}/outputs/{output_name}'\n# A fresh process")
-    strong_label = '14B' if mode.endswith('14b') or mode=='qwen15screen' else '7B'
-    pair = f'Qwen2.5-1.5B → Qwen2.5-{strong_label}' if mode=='qwen15screen' else f'Phi-3-mini → Qwen2.5-{strong_label}'
+    qwen_small=mode in {'qwen15screen','confirmatory'}
+    strong_label = '14B' if mode.endswith('14b') or qwen_small else '7B'
+    pair = f'Qwen2.5-1.5B → Qwen2.5-{strong_label}' if qwen_small else f'Phi-3-mini → Qwen2.5-{strong_label}'
     cells = [dict(id='description',cell_type='markdown',metadata={},source=[
         '# Adaptive Confidence Acquisition\n',
         f'Source commit `{commit}`. Mode: **{mode}**. {pair}-Instruct. Requires GPU and Internet; no Hugging Face token or gated access.\n',
@@ -69,7 +71,7 @@ subprocess.check_call([sys.executable, '/kaggle/working/aca-source/kaggle/runner
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--owner',default='sushobhanrai')
-    parser.add_argument('--mode',choices=['pilot','pilot14b','research','research14b','viability14b','diagnostic','qwen15screen'],default='pilot')
+    parser.add_argument('--mode',choices=['pilot','pilot14b','research','research14b','viability14b','diagnostic','qwen15screen','confirmatory'],default='pilot')
     parser.add_argument('--out',default='outputs/kaggle-bundle')
     parser.add_argument('--resume-kernel')
     args = parser.parse_args()

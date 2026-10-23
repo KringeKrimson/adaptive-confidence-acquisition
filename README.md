@@ -453,3 +453,38 @@ features, IC matrices, timings, overheads and plots remain in ignored `outputs/`
 and the immutable Kaggle output. The next experiment is evaluation of these
 frozen choices on the reserved final test, without changing grids/probe/selection
 after this readout. That final-test experiment has not been run.
+
+## Confirmatory pre-test addendum
+
+The user approved the reserved final test after the prospective PASS. The audit
+in `results/confirmatory_audit.json` verifies unchanged committed methods and the
+matched 128-query assessment calculation: 47/128 small, 73/128 strong, 62/128
+routed; required gain 10.16 points and observed cost fraction 77.99%.
+All frozen selections were reproduced from calibration alone. The 512 reserved
+queries overlap neither development IDs nor normalized questions; 3928 previous
+stage records contain no final-test prediction.
+
+`results/confirmatory_protocol.json` fixes the remaining analysis details before
+test inference. The original eight policies, probe, inference settings and cost
+rules remain unchanged. The previous policy artifact did not define exact total
+cost matching or a practical-effect threshold; these are explicitly new pre-test
+definitions, not retrospectively attributed to that artifact.
+
+The primary comparator is a query-independent randomized mixture of the two
+unique frozen cheap-only rules. Its mixture weight uses measured costs only,
+never test labels, to match each adaptive point's expected total service cost.
+Above the cheap family's cost range, report the cheaper endpoint with an explicit
+non-exact-match flag; no extrapolation or threshold search. This is a retrospective
+timing-oracle benchmark. The 10,000 paired query bootstrap resamples recompute the
+mixture weight, reporting pointwise95 and Bonferroni familywise95 for all eight
+points. Meaningful support requires an exact match with nonzero IC, estimated
+gain ≥3 percentage points and familywise lower bound >0. Also report whether
+the lower bound itself exceeds3 points. The three-point scale follows the
+project's earlier minimum routing-gain scale; it is fixed here before test.
+
+All secondary baselines, accuracy/cost points, acquisition/escalation rates,
+weighted randomized-branch latency quantiles, and beneficial/harmful IC-induced
+routing changes are reported. Frontier identification is descriptive; it selects
+no new deployment operating point. Model loading, warmups, offline collection
+expenditure and additive warm cascade costs are separated. Build with
+`python scripts/kaggle_bundle.py --mode confirmatory --out outputs/kaggle-confirmatory-bundle`.

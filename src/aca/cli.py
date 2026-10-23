@@ -33,6 +33,8 @@ def main(argv=None):
     p.add_argument('--out',required=True)
     p = sub.add_parser('compare-development')
     p.add_argument('--out',required=True)
+    p = sub.add_parser('confirmatory-evaluate')
+    p.add_argument('--out',required=True)
     p = sub.add_parser('viability')
     p.add_argument('--out',required=True)
     p.add_argument('--protocol',choices=['original','qwen15'],default='original')
@@ -66,6 +68,10 @@ def main(argv=None):
     elif command == 'compare-development':
         from .frozen import compare_development
         print(json.dumps(compare_development(root),indent=2))
+    elif command == 'confirmatory-evaluate':
+        from .confirmatory import evaluate
+        report=evaluate(root)
+        print(json.dumps(report,indent=2))
     else:
         from .collect import pilot_summary
         pilot_summary(root)
