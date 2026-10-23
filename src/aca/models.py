@@ -23,12 +23,13 @@ def load_model(name, revision, quantization='4bit'):
     from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
     if not torch.cuda.is_available():
         raise RuntimeError('A CUDA GPU is required for the research run. Local tests use tiny random models only.')
-    options = dict(revision=revision, token=False, torch_dtype=torch.float16,
+    dtype = torch.float32 if quantization == '4bit-fp32' else torch.float16
+    options = dict(revision=revision, token=False, torch_dtype=dtype,
                    device_map={'': 0}, attn_implementation='eager', trust_remote_code=False)
-    if quantization == '4bit':
+    if quantization in {'4bit', '4bit-fp32'}:
         options['quantization_config'] = BitsAndBytesConfig(
             load_in_4bit=True, bnb_4bit_quant_type='nf4',
-            bnb_4bit_compute_dtype=torch.float16, bnb_4bit_use_double_quant=True)
+            bnb_4bit_compute_dtype=dtype, bnb_4bit_use_double_quant=True)
     tokenizer = AutoTokenizer.from_pretrained(name, revision=revision, token=False, trust_remote_code=False)
     tokenizer.pad_token = tokenizer.eos_token
     model = AutoModelForCausalLM.from_pretrained(name, **options).eval()
@@ -44,7 +45,16 @@ def tokenize(model, tokenizer, messages, reserve=0):
     return inputs
 
 
+class FiniteLogits:
+    """Reject numerical failures before argmax can silently turn NaN into token 0."""
+    def __call__(self, input_ids, scores):
+        if not torch.isfinite(scores).all().item():
+            raise FloatingPointError('Non-finite generation logits; refuse invalid predictions')
+        return scores
+
+
 def generate_answer(model, tokenizer, question, max_new_tokens=32, capture_features=False):
+    from transformers import LogitsProcessorList
     captured = []
     # The first norm invocation is the ordinary QA prefill. No extra model pass.
     def hook(_module, _args, output):
@@ -57,7 +67,8 @@ def generate_answer(model, tokenizer, question, max_new_tokens=32, capture_featu
         with torch.inference_mode():
             inputs = tokenize(model, tokenizer, qa_messages(question), reserve=max_new_tokens)
             generated = model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False,
-                                       use_cache=True, pad_token_id=tokenizer.pad_token_id)
+                                       use_cache=True, pad_token_id=tokenizer.pad_token_id,
+                                       logits_processor=LogitsProcessorList([FiniteLogits()]))
             answer_ids = generated[0, inputs.input_ids.shape[1]:]
             prediction = tokenizer.decode(answer_ids, skip_special_tokens=True).strip()
             feature = captured[0].float().cpu().tolist() if capture_features else None
@@ -82,6 +93,8 @@ def estimate_ic(model, tokenizer, question, last_k=3, alpha=1.0):
             raise ValueError('IC token window exceeds prompt')
         output = model.model(**inputs, output_hidden_states=True, use_cache=False)
         matrix = project_p_yes(output.hidden_states, model.lm_head, ids, last_k)
+        if not torch.isfinite(torch.as_tensor(matrix)).all().item():
+            raise FloatingPointError('Non-finite IC probabilities')
         score = aggregate_ic(matrix, alpha)
     synchronize()
     elapsed = time.perf_counter() - start

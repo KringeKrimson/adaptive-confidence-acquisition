@@ -66,7 +66,7 @@ subprocess.check_call([sys.executable, '/kaggle/working/aca-source/kaggle/runner
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--owner',default='sushobhanrai')
-    parser.add_argument('--mode',choices=['pilot','research'],default='pilot')
+    parser.add_argument('--mode',choices=['pilot','research','diagnostic'],default='pilot')
     parser.add_argument('--out',default='outputs/kaggle-bundle')
     parser.add_argument('--resume-kernel')
     args = parser.parse_args()

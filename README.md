@@ -157,3 +157,19 @@ equivalence, incremental cost accounting, random acquisition budgets,
 configuration compatibility, and real forward/generation integration with
 tiny random Phi-3/Qwen/Llama models. Tiny-model or synthetic tests are engineering
 checks, **not research accuracy measurements**.
+
+## First saved Kaggle pilot (diagnostic, not hypothesis evidence)
+
+Saved version [361392122](https://www.kaggle.com/code/sushobhanrai/adaptive-confidence-acquisition-pilot?scriptVersionId=361392122)
+ran commit `2277cb9` on a Tesla T4 in 334.6 seconds, including installation,
+model downloads, loading and warmup. All 32 paired predictions were downloaded.
+Phi-3: 16/32 exact matches, 0.449 s/query, no token-limit hits.
+Qwen-7B: 11/32, 0.722 s/query, four token-limit hits; two rescues and seven harms.
+Several Qwen answers contain anomalous `!` tokens and malformed strings.
+These are unvalidated numerical results, not evidence against the acquisition
+hypothesis. The next diagnostic repeats the same reserved pilot with a finite-logit
+guard and compares NF4 FP16 against NF4 FP32 compute and unquantized-module dtype
+(`--quantization 4bit-fp32`). The guard's synchronization cost is included in
+subsequent measured generation times. It prevents NaN/Inf logits from silently
+becoming greedy token IDs; it does not repair or filter answers. A failed
+numerical check stops collection rather than caching an invalid prediction.

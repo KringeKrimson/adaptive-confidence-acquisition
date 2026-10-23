@@ -23,8 +23,21 @@ def run(mode='pilot', resume_from=None):
               '--exclude-manifest',str(pilot/'queries.json')])
         main(['collect','--out',str(root),'--stages','small','strong','ic'])
         main(['analyze','--out',str(root)])
+    elif mode == 'diagnostic':
+        from aca.storage import atomic_json
+        # The inspected pilot is diagnostic data, never research train/val/test.
+        # Repeat FP16 with finite-logit checking, then compare stable FP32 compute.
+        for precision in ['4bit', '4bit-fp32']:
+            trial = root / precision
+            main(['prepare','--out',str(trial),'--test','32'])
+            try:
+                main(['collect','--out',str(trial),'--quantization',precision,
+                      '--stages','small','strong','ic'])
+            except FloatingPointError as error:
+                atomic_json(trial/'numerical_failure.json',dict(error=str(error)))
+                print(f'{precision}: {error}', flush=True)
     else:
-        raise ValueError('mode must be pilot or research')
+        raise ValueError('mode must be pilot, research, or diagnostic')
 
 
 if __name__ == '__main__':

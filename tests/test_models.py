@@ -6,7 +6,16 @@ import numpy as np
 import pytest
 import torch
 from aca.ic import project_p_yes
-from aca.models import generate_answer
+from aca.models import FiniteLogits, generate_answer
+
+
+def test_reject_nonfinite_logits():
+    guard = FiniteLogits()
+    good = torch.tensor([[1.0, 2.0]])
+    assert guard(None, good) is good
+    for bad in [float('nan'), float('inf'), -float('inf')]:
+        with pytest.raises(FloatingPointError, match='Non-finite'):
+            guard(None, torch.tensor([[1.0, bad]]))
 
 
 @pytest.mark.parametrize('architecture',['phi3','qwen2','llama'])
