@@ -40,11 +40,12 @@ def select_probe(x, y, splits):
     return c, probe, [dict(loss=loss,C=c0) for loss,c0,_ in candidates]
 
 
-def viability(root):
+def viability(root, protocol=None):
     """Development readout: no test predictions read, no hypothesis conclusion."""
     from .viability import PROTOCOL, calibration_mask, check_protocol, screen_pair
+    protocol = PROTOCOL if protocol is None else protocol
     root = Path(root)
-    frozen = check_protocol(root)
+    frozen = check_protocol(root,protocol)
     queries = read_json(root/'queries.json')['queries']
     validate_splits(queries)
     development = [q for q in queries if q['split'] != 'test']
@@ -56,7 +57,7 @@ def viability(root):
         raise ValueError('Mixed inference configurations in cache')
     split = np.array([q['split'] for q in development])
     y = np.array([r['correct'] for r in small])
-    calibration = calibration_mask(validation)
+    calibration = calibration_mask(validation,protocol)
     calibration_ids = {q['id'] for q,use in zip(validation,calibration) if use}
     fit_mask = np.array([q['split']=='train' or q['id'] in calibration_ids for q in development])
     x = np.array([r['features'] for r in small],dtype=np.float64)
@@ -77,13 +78,16 @@ def viability(root):
         small_seconds=np.array([r['elapsed_seconds'] for r in val_small]),
         strong_seconds=np.array([r['elapsed_seconds'] for r in strong]),
         ic_seconds=np.array([r['elapsed_seconds'] for r in ic]),probe_seconds=np.array(probe_seconds))
-    screen = screen_pair(data,calibration)
+    screen = screen_pair(data,calibration,protocol)
     manifest = read_json(root/'inference_manifest.json')
-    valid_setup = (sum(split=='train')==PROTOCOL['n_train'] and len(validation)==PROTOCOL['n_validation']
-                   and manifest.get('model_roles')==PROTOCOL['model_roles']
-                   and manifest.get('model_revisions')==PROTOCOL['model_revisions']
-                   and read_json(root/'queries.json').get('revision')==PROTOCOL['dataset_revision']
-                   and manifest.get('quantization')==PROTOCOL['quantization'])
+    valid_setup = (sum(split=='train')==protocol['n_train'] and len(validation)==protocol['n_validation']
+                   and manifest.get('model_roles')==protocol['model_roles']
+                   and manifest.get('model_revisions')==protocol['model_revisions']
+                   and read_json(root/'queries.json').get('revision')==protocol['dataset_revision']
+                   and manifest.get('quantization')==protocol['quantization'])
+    for key in ['max_new_tokens','answer_stop','ic_last_k','ic_alpha']:
+        if key in protocol:
+            valid_setup = valid_setup and manifest.get(key)==protocol[key]
     report = dict(scope='Frozen development viability screen. C and one routing rule selected on calibration only; final test is unused. This is not the adaptive-acquisition hypothesis test.',
         n_train=int(sum(split=='train')),n_validation=len(validation),test_predictions_read=0,
         status=('PASS' if screen['passed'] else 'FAIL') if valid_setup else 'INVALID_SIZE_OR_CONFIG',
@@ -97,12 +101,17 @@ def viability(root):
         confidence=dict(cheap=confidence_metrics(sy,cheap),ic=confidence_metrics(sy,[r['ic'] for r in ic])),
         confidence_assessment=dict(cheap=confidence_metrics(sy[~calibration],cheap[~calibration]),
                                    ic=confidence_metrics(sy[~calibration],data['ic'][~calibration])),
-        strong_minus_small_bootstrap_95=bootstrap_delta(ty,sy,repeats=PROTOCOL['bootstrap_repeats']),
+        strong_minus_small_bootstrap_95=bootstrap_delta(ty,sy,repeats=protocol['bootstrap_repeats']),
         probe_C=c,validation_losses=losses,training_seconds=elapsed,
         train_ids=[q['id'] for q in development if q['split']=='train'],
         validation_ids=[q['id'] for q in validation],
         calibration_ids=[q['id'] for q,use in zip(validation,calibration) if use],
         assessment_ids=[q['id'] for q,use in zip(validation,calibration) if not use])
+    if protocol['version']>1:
+        report.update(token_limit_hits=dict(train=sum(r['hit_token_limit'] for r in small if r['split']=='train'),
+            small_validation=sum(r['hit_token_limit'] for r in val_small),strong_validation=sum(r['hit_token_limit'] for r in strong)),
+            feature_dimension=int(x.shape[1]),ic_shape=list(np.asarray(ic[0]['p_yes']).shape),
+            memory=[read_json(p) for p in sorted((root/'overhead').glob('*-memory-*.json'))])
     scaler,classifier = probe.steps[0][1],probe.steps[1][1]
     atomic_json(root/'viability_probe.json',dict(C=c,mean=scaler.mean_.tolist(),scale=scaler.scale_.tolist(),
         coefficients=classifier.coef_.tolist(),intercept=classifier.intercept_.tolist(),

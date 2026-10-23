@@ -20,6 +20,8 @@ def main(argv=None):
     p.add_argument('--splits',nargs='+',choices=['train','validation','test'],default=['train','validation','test'])
     p.add_argument('--max-new-tokens',type=int,default=32)
     p.add_argument('--quantization',choices=['4bit','4bit-fp32','none'],default='4bit-fp32')
+    p.add_argument('--small-model',choices=['microsoft/Phi-3-mini-4k-instruct','Qwen/Qwen2.5-1.5B-Instruct'],default='microsoft/Phi-3-mini-4k-instruct')
+    p.add_argument('--answer-stop',choices=['eos','first-line'],default='eos')
     p.add_argument('--strong-model',choices=['Qwen/Qwen2.5-7B-Instruct','Qwen/Qwen2.5-14B-Instruct'],
                    default='Qwen/Qwen2.5-7B-Instruct')
     p = sub.add_parser('analyze')
@@ -29,6 +31,7 @@ def main(argv=None):
     p.add_argument('--out',required=True)
     p = sub.add_parser('viability')
     p.add_argument('--out',required=True)
+    p.add_argument('--protocol',choices=['original','qwen15'],default='original')
     args = parser.parse_args(argv)
     options = vars(args).copy()
     command = options.pop('command')
@@ -45,7 +48,12 @@ def main(argv=None):
         print(json.dumps(report['results'],indent=2))
     elif command == 'viability':
         from .analysis import viability
-        print(json.dumps(viability(root),indent=2))
+        if options['protocol']=='qwen15':
+            from .prospective import PROTOCOL
+            report=viability(root,protocol=PROTOCOL)
+        else:
+            report=viability(root)
+        print(json.dumps(report,indent=2))
     else:
         from .collect import pilot_summary
         pilot_summary(root)

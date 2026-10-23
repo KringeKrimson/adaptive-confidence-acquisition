@@ -64,7 +64,13 @@ def test_interrupted_collection_resumes_completed_queries(tmp_path, monkeypatch)
         module.models.SMALL:'pinned-small',module.models.STRONG:'pinned-strong'})
     monkeypatch.setattr(module.torch.cuda,'is_available',lambda:True)
     monkeypatch.setattr(module,'runtime',lambda:{'test':'fake'})
-    monkeypatch.setattr(module.models,'load_model',lambda *args: (object(),object()))
+    from types import SimpleNamespace
+    monkeypatch.setattr(module.models,'load_model',lambda *args: (SimpleNamespace(get_memory_footprint=lambda:100),object()))
+    monkeypatch.setattr(module.torch.cuda,'reset_peak_memory_stats',lambda:None)
+    monkeypatch.setattr(module.torch.cuda,'get_device_properties',lambda _:SimpleNamespace(total_memory=1000))
+    monkeypatch.setattr(module.torch.cuda,'device_count',lambda:2)
+    monkeypatch.setattr(module.torch.cuda,'max_memory_allocated',lambda:200)
+    monkeypatch.setattr(module.torch.cuda,'max_memory_reserved',lambda:300)
     monkeypatch.setattr(module.models,'release_model',lambda *args:None)
     attempts=[]
     interrupted=[False]

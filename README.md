@@ -333,3 +333,52 @@ A new development protocol must be frozen before that check, with a matched
 short-answer/stopping rule fixed in advance and the final test still unused.
 Do not switch pairs repeatedly until a pass or promote development comparisons
 to final-test hypothesis evidence. No replacement run has been launched.
+
+## Prospective Qwen-1.5B → Qwen-14B screen (pre-inference protocol)
+
+The user authorized this second pair on 2026-10-23. `aca.prospective.PROTOCOL`
+copies the original criteria without mutating them: identical sample counts,
+three gates, probe C/threshold grids, calibration/assessment split rule, cost
+definition and selection logic. Only the following necessary settings change:
+
+- New small model pinned to `989aa7980e4cf806f80c7fef2b1adb7bc71aa306`;
+  the strong model keeps its original pinned revision.
+- Fresh 1024 training + 256 validation queries from official training data,
+  sampling seed 4902. Exclude the entire old development cohort and reserved
+  pilot by ID and normalized question. This run has no final-test queries.
+- Same zero-shot QA prompt, greedy decoding; stop at the first nonempty answer
+  line or EOS with a 64-token ceiling. Apply the identical rule to both models.
+  Strict alias EM; no reference-aware answer extraction. New timings include
+  the stopping checks. Old predictions/labels/timings/verdict remain unchanged.
+- Rebuild 1536-dimensional final normalized ordinary-QA prompt features and
+  fit a new train-only logistic correctness probe. No Phi features/weights reused.
+- Transfer the authors' Qwen six-final-token IC setting, alpha=1, no examples;
+  verify tokenizer suffix and Yes/No IDs `[9454,2753]`. Qwen-1.5B was not in the
+  paper's evaluated model set, so this is an explicit model-transfer variant.
+  Include all 29 hidden states; preserve the released projection/aggregation.
+- Both models retain NF4 double quantization with FP32 compute and unquantized
+  modules, eager attention, batch one, sequential GPU0 on T4×2. No BF16 assumption
+  or precision search based on observed accuracy. Record actual peak memory.
+
+`--mode qwen15screen` freezes the protocol before an automatic separate eight-query
+training smoke. Engineering checks require finite features/logits/IC, positive
+timings, expected dimensions/IDs, GPU full-vocabulary/reduced-head IC equivalence,
+no OOM and >256 MiB reserved-memory headroom. There is no smoke accuracy gate.
+Success automatically advances to 1024/256 collection and the unchanged screen.
+Per-query atomic checkpoints and the existing resume-input mechanism are retained.
+Loads, warmups, projection verification and smoke are recorded separately from
+warm per-query routing costs. The runner never collects the final test.
+
+Offline diagnosis of the original failed screen is saved in
+[`results/diagnosis_phi14b.json`](results/diagnosis_phi14b.json). Cheap correctness
+AUROC was 0.721 overall / 0.648 assessment, but low cheap confidence predicted a
+rescue at AUROC 0.493 overall / 0.425 assessment. Correctness is not escalation
+benefit: benefit is strong correctness minus small correctness, including harms.
+The original diagnostic rule escalated 74 queries: 16 rescues, seven harms,
+51 unchanged outcomes, missing 58 rescues. A free label-and-timing oracle could
+meet the validation target at 51.9% of strong-only cost; thus overhead alone does
+not make the goal impossible. Calibration-only exploratory adaptive replay adds
+one correct answer (0.78 points) over the best budget-feasible cheap rule, still
+below the target. No assessment optimization or original policy changes were made.
+First-line-only diagnostic rescoring finds ten extra Phi validation matches,
+six among 16 cap hits; this motivates prospective stopping, not retroactive repair.

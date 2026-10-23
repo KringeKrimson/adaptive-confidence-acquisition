@@ -40,7 +40,8 @@ def resolve_revisions(small=models.SMALL, strong=models.STRONG):
 
 
 def collect(root, stages=('small', 'strong'), max_new_tokens=32, quantization='4bit-fp32',
-            strong_model=models.STRONG, splits=('train', 'validation', 'test')):
+            strong_model=models.STRONG, splits=('train', 'validation', 'test'),
+            small_model=models.SMALL, answer_stop='eos'):
     root = Path(root)
     dataset = read_json(root / 'queries.json')
     if not splits or not set(splits) <= {'train', 'validation', 'test'}:
@@ -51,23 +52,29 @@ def collect(root, stages=('small', 'strong'), max_new_tokens=32, quantization='4
         raise ValueError('No queries in selected collection splits')
     if strong_model not in models.STRONG_MODELS:
         raise ValueError('Use a supported public Qwen strong model')
+    if small_model not in models.SMALL_MODELS:
+        raise ValueError('Use a supported small model')
+    # Author run_ic.py uses six final tokens for Qwen; 1.5B is an explicit transfer.
+    last_k = 6 if small_model.startswith('Qwen/') else 3
     if not torch.cuda.is_available():
         raise RuntimeError('CUDA GPU unavailable; select a Kaggle GPU accelerator')
     revision_path = root / 'model_revisions.json'
     if revision_path.exists():
         revisions = read_json(revision_path)
     else:
-        revisions = resolve_revisions(strong=strong_model)
+        revisions = resolve_revisions(small=small_model,strong=strong_model)
         atomic_json(revision_path, revisions)
-    if set(revisions) != {models.SMALL,strong_model}:
+    if set(revisions) != {small_model,strong_model}:
         raise ValueError('Model pair changed; use a different output directory')
     config = dict(schema=1, dataset_hash=fingerprint(dataset), model_revisions=revisions,
-                  model_roles=dict(small=models.SMALL,strong=strong_model),anonymous_model_access=True,
+                  model_roles=dict(small=small_model,strong=strong_model),anonymous_model_access=True,
                   max_new_tokens=max_new_tokens, quantization=quantization, batch_size=1,
                   source_hash=source_hash(), runtime=runtime(), ic_author_commit=AUTHOR_COMMIT,
-                  ic_last_k=3, ic_alpha=1.0, ic_examples=[])
+                  ic_last_k=last_k, ic_alpha=1.0, ic_examples=[])
+    if answer_stop != 'eos' or small_model != models.SMALL:
+        config.update(answer_stop=answer_stop,feature_definition='Final normalized hidden state of final ordinary QA prompt token, captured during generation prefill; no extra forward pass')
     bind_manifest(root, 'inference_manifest.json', config)
-    for role, name in [('small', models.SMALL), ('strong', strong_model)]:
+    for role, name in [('small', small_model), ('strong', strong_model)]:
         relevant = [s for s in stages if (s in {'small', 'ic'} if role == 'small' else s == 'strong')]
         missing = {s: [q for q in queries if not record_path(root, s, q).exists()] for s in relevant}
         if not any(missing.values()):
@@ -75,10 +82,17 @@ def collect(root, stages=('small', 'strong'), max_new_tokens=32, quantization='4
         start = time.perf_counter()
         model, tokenizer = models.load_model(name, revisions[name], quantization)
         load_seconds = time.perf_counter() - start
+        torch.cuda.reset_peak_memory_stats()
+        memory_before = dict(model_footprint_bytes=model.get_memory_footprint(),
+                             total_bytes=torch.cuda.get_device_properties(0).total_memory,
+                             visible_gpus=torch.cuda.device_count(),device='cuda:0')
         warmup = models.generate_answer(model, tokenizer, 'What is the capital of France?', 4,
-                                        capture_features=role == 'small')
+                                        capture_features=role == 'small',answer_stop=answer_stop)
         if 'ic' in relevant:
-            ic_warmup = models.estimate_ic(model, tokenizer, 'What is the capital of France?')
+            ic_warmup = models.estimate_ic(model, tokenizer, 'What is the capital of France?',last_k=last_k)
+            if small_model.startswith('Qwen/'):
+                check=models.verify_ic_projection(model,tokenizer,last_k)
+                atomic_json(root/'overhead'/f'ic-projection-{time.time_ns()}.json',check)
         else:
             ic_warmup = None
         atomic_json(root / 'overhead' / f'{role}-{time.time_ns()}.json', dict(
@@ -88,10 +102,10 @@ def collect(root, stages=('small', 'strong'), max_new_tokens=32, quantization='4
             for stage in relevant:
                 for i, query in enumerate(missing[stage]):
                     if stage == 'ic':
-                        result = models.estimate_ic(model, tokenizer, query['question'])
+                        result = models.estimate_ic(model, tokenizer, query['question'],last_k=last_k)
                     else:
                         result = models.generate_answer(model, tokenizer, query['question'],
-                                                        max_new_tokens, capture_features=stage == 'small')
+                                                        max_new_tokens, capture_features=stage == 'small',answer_stop=answer_stop)
                         result.update(correct=exact_match(result['prediction'], query['aliases']),
                                       f1=token_f1(result['prediction'], query['aliases']))
                     result.update(id=query['id'], split=query['split'], model=name,
@@ -99,6 +113,9 @@ def collect(root, stages=('small', 'strong'), max_new_tokens=32, quantization='4
                     atomic_json(record_path(root, stage, query), result)
                     print(f'{stage}: saved {i+1}/{len(missing[stage])} ({query["id"]})', flush=True)
         finally:
+            atomic_json(root/'overhead'/f'{role}-memory-{time.time_ns()}.json',dict(
+                model=name,**memory_before,peak_allocated_bytes=torch.cuda.max_memory_allocated(),
+                peak_reserved_bytes=torch.cuda.max_memory_reserved()))
             del model
             models.release_model(None)
     # Split selection schedules work; it does not change any per-query computation.

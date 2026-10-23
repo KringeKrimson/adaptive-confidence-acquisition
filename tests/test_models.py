@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 import torch
 from aca.ic import project_p_yes
-from aca.models import FiniteLogits, generate_answer
+from aca.models import FiniteLogits, FirstAnswerLine, generate_answer, verify_ic_projection
 
 
 def test_reject_nonfinite_logits():
@@ -16,6 +16,16 @@ def test_reject_nonfinite_logits():
     for bad in [float('nan'), float('inf'), -float('inf')]:
         with pytest.raises(FloatingPointError, match='Non-finite'):
             guard(None, torch.tensor([[1.0, bad]]))
+
+
+def test_first_line_stopping_is_not_answer_aware():
+    class Tokenizer:
+        text=''
+        def decode(self,*a,**kw): return self.text
+    tok=Tokenizer();stop=FirstAnswerLine(tok,2)
+    for text,expected in [('\n\n',False),('\nParis',False),('Paris\n',True),('Paris\nExplanation',True),('Wrong answer\n',True)]:
+        tok.text=text
+        assert stop(torch.ones((1,5),dtype=torch.long),None)==expected
 
 
 @pytest.mark.parametrize('architecture',['phi3','qwen2','llama'])
@@ -52,3 +62,20 @@ def test_prefill_features_and_ic_projection(architecture):
     assert np.allclose(record['features'],expected.last_hidden_state[0,-1].numpy(),atol=1e-5)
     assert record['elapsed_seconds']>0
     assert record['output_tokens']>=1
+
+
+def test_tied_qwen_ic_head_matches_full_projection():
+    from transformers import Qwen2Config,Qwen2ForCausalLM
+    from transformers import BatchEncoding
+    torch.manual_seed(7)
+    model=Qwen2ForCausalLM(Qwen2Config(vocab_size=64,hidden_size=32,intermediate_size=64,
+        num_hidden_layers=2,num_attention_heads=4,num_key_value_heads=2,max_position_embeddings=512,
+        tie_word_embeddings=True)).eval()
+    class Tokenizer:
+        def encode(self,word,**kw): return [8 if word=='Yes' else 9]
+        def apply_chat_template(self,*a,**kw): return 'prompt'
+        def __call__(self,*a,**kw):
+            x=torch.tensor([[1,3,4,5,6,7,8,9]])
+            return BatchEncoding(dict(input_ids=x,attention_mask=torch.ones_like(x)))
+    r=verify_ic_projection(model,Tokenizer(),6)
+    assert r['shape']==[6,3] and r['max_probability_error']<2e-5

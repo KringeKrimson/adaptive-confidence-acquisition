@@ -13,7 +13,15 @@ def run(mode='pilot', resume_from=None):
     root = Path('/kaggle/working/outputs') / output_name
     if resume_from:
         shutil.copytree(resume_from,root,dirs_exist_ok=True)
-    if mode == 'pilot':
+    if mode == 'qwen15screen':
+        from aca.prospective import run as prospective_run
+        try:
+            prospective_run(root)
+        except Exception as error:
+            from aca.storage import atomic_json
+            atomic_json(root/'run_failure.json',dict(type=type(error).__name__,error=str(error)))
+            raise
+    elif mode == 'pilot':
         main(['prepare','--out',str(root),'--test','32'])
         main(['collect','--out',str(root)])
     elif mode == 'pilot14b':

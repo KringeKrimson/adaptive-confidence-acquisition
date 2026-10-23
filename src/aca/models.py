@@ -5,6 +5,7 @@ import torch
 from .ic import aggregate_ic, ic_messages, project_p_yes, yes_no_ids
 
 SMALL = 'microsoft/Phi-3-mini-4k-instruct'
+SMALL_MODELS = (SMALL, 'Qwen/Qwen2.5-1.5B-Instruct')
 STRONG = 'Qwen/Qwen2.5-7B-Instruct'
 STRONG_MODELS = (STRONG, 'Qwen/Qwen2.5-14B-Instruct')
 
@@ -53,8 +54,20 @@ class FiniteLogits:
         return scores
 
 
-def generate_answer(model, tokenizer, question, max_new_tokens=32, capture_features=False):
-    from transformers import LogitsProcessorList
+class FirstAnswerLine:
+    """Batch-one stop after a nonempty answer line, including leading blank lines."""
+    def __init__(self, tokenizer, prompt_length):
+        self.tokenizer, self.prompt_length = tokenizer, prompt_length
+
+    def __call__(self, input_ids, scores, **kwargs):
+        text = self.tokenizer.decode(input_ids[0, self.prompt_length:], skip_special_tokens=True).lstrip()
+        return '\n' in text or '\r' in text
+
+
+def generate_answer(model, tokenizer, question, max_new_tokens=32, capture_features=False, answer_stop='eos'):
+    from transformers import LogitsProcessorList, StoppingCriteriaList
+    if answer_stop not in {'eos','first-line'}:
+        raise ValueError('Unknown answer stopping rule')
     captured = []
     # The first norm invocation is the ordinary QA prefill. No extra model pass.
     def hook(_module, _args, output):
@@ -66,21 +79,28 @@ def generate_answer(model, tokenizer, question, max_new_tokens=32, capture_featu
     try:
         with torch.inference_mode():
             inputs = tokenize(model, tokenizer, qa_messages(question), reserve=max_new_tokens)
+            stopping = (StoppingCriteriaList([FirstAnswerLine(tokenizer, inputs.input_ids.shape[1])])
+                        if answer_stop == 'first-line' else None)
             generated = model.generate(**inputs, max_new_tokens=max_new_tokens, do_sample=False,
                                        use_cache=True, pad_token_id=tokenizer.pad_token_id,
+                                       stopping_criteria=stopping,
                                        logits_processor=LogitsProcessorList([FiniteLogits()]))
             answer_ids = generated[0, inputs.input_ids.shape[1]:]
-            prediction = tokenizer.decode(answer_ids, skip_special_tokens=True).strip()
+            raw_prediction = tokenizer.decode(answer_ids, skip_special_tokens=True).strip()
+            prediction = raw_prediction.splitlines()[0].strip() if answer_stop=='first-line' and raw_prediction else raw_prediction
             feature = captured[0].float().cpu().tolist() if capture_features else None
         synchronize()
         elapsed = time.perf_counter() - start
     finally:
         if handle is not None:
             handle.remove()
-    return dict(prediction=prediction, features=feature, elapsed_seconds=elapsed,
+    result = dict(prediction=prediction, features=feature, elapsed_seconds=elapsed,
                 input_tokens=int(inputs.input_ids.shape[1]), output_tokens=len(answer_ids),
                 model_calls=1, forward_passes=len(answer_ids),
                 hit_token_limit=bool(len(answer_ids) == max_new_tokens))
+    if answer_stop != 'eos':
+        result.update(raw_prediction=raw_prediction,answer_stop=answer_stop)
+    return result
 
 
 def estimate_ic(model, tokenizer, question, last_k=3, alpha=1.0):
@@ -102,6 +122,29 @@ def estimate_ic(model, tokenizer, question, last_k=3, alpha=1.0):
                 last_k=last_k, alpha=alpha, elapsed_seconds=elapsed,
                 input_tokens=int(inputs.input_ids.shape[1]), output_tokens=0,
                 model_calls=1, forward_passes=1)
+
+
+def verify_ic_projection(model, tokenizer, last_k):
+    """One setup-only forward: selected-head optimization versus full vocabulary."""
+    import numpy as np
+    ids=yes_no_ids(tokenizer)
+    synchronize();start=time.perf_counter()
+    with torch.inference_mode():
+        inputs=tokenize(model,tokenizer,ic_messages('What is the capital of France?'))
+        states=model.model(**inputs,output_hidden_states=True,use_cache=False).hidden_states
+        reduced=project_p_yes(states,model.lm_head,ids,last_k)
+        full=[]
+        for state in states:
+            logits=model.lm_head(state[:,-last_k:,:]).float()
+            assert torch.isfinite(logits).all().item()
+            full.append(logits[0,:,ids].softmax(-1)[:,0].cpu().numpy())
+        full=np.stack(full,axis=-1)
+        error=float(np.max(np.abs(full-reduced)))
+        if not np.allclose(full,reduced,atol=2e-5,rtol=2e-5):
+            raise ValueError(f'Full versus reduced IC projection mismatch: {error}')
+    synchronize()
+    return dict(max_probability_error=error,shape=list(reduced.shape),yes_no_ids=ids,
+                elapsed_seconds=time.perf_counter()-start,model_calls=1,scope='setup-only, not a per-query service cost')
 
 
 def release_model(model):

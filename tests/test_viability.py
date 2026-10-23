@@ -61,3 +61,21 @@ def test_fixed_partition_is_order_invariant():
     rev=list(reversed(q))
     b={x['id'] for x,selected in zip(rev,calibration_mask(rev)) if selected}
     assert a==b
+
+
+def test_new_protocol_preserves_original_gates_and_is_separate(tmp_path):
+    from aca.viability import PROTOCOL
+    from aca.prospective import PROTOCOL as NEW
+    assert PROTOCOL['version']==1 and PROTOCOL['model_roles']['small'].startswith('microsoft/')
+    for key in ['minimum_accuracy_advantage','minimum_rescue_rate','maximum_harms_per_rescue',
+                'minimum_routing_gain','minimum_advantage_recovered','maximum_strong_cost_fraction',
+                'thresholds','routing_methods','probe_C','n_train','n_validation']:
+        assert NEW[key]==PROTOCOL[key]
+    assert NEW['ic_last_k']==6 and NEW['max_new_tokens']==64
+    atomic_json(tmp_path/'queries.json',dict(queries=[]))
+    freeze_protocol(tmp_path,NEW);check_protocol(tmp_path,NEW)
+    with pytest.raises(ValueError,match='changed'):
+        check_protocol(tmp_path)
+    old=screen_pair(pair_data(),np.arange(20)<10)
+    new=screen_pair(pair_data(),np.arange(20)<10,NEW)
+    assert old['gates']==new['gates'] and old['selected_policy']==new['selected_policy']
