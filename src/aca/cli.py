@@ -12,6 +12,7 @@ def main(argv=None):
     p.add_argument('--validation',type=int,default=0)
     p.add_argument('--test',type=int,default=32)
     p.add_argument('--seed',type=int,default=4901)
+    p.add_argument('--revision',help='Pinned dataset commit')
     p.add_argument('--exclude-manifest',help='Exclude inspected pilot queries from every research split')
     p = sub.add_parser('collect')
     p.add_argument('--out',required=True)

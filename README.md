@@ -216,8 +216,9 @@ python scripts/kaggle_bundle.py --mode viability14b --out outputs/kaggle-viabili
 It reserves the pilot, prepares the 1024/256/512 manifest in `outputs/research14b`,
 collects small QA/features on train+validation and strong QA/IC on validation,
 and writes `viability.json`. It performs no test inference and reads no test
-predictions. Its probe C is selected on that validation set, so the reported
-validation confidence metrics are development diagnostics, not held-out evidence.
+predictions. Its probe C and one routing policy are selected only on a fixed calibration
+half of validation. The other half assesses routing viability. These remain
+development diagnostics, not final-test hypothesis evidence.
 The `research14b` mode can subsequently extend the same cache to test and run
 all baseline comparisons; attach the saved development output when resuming.
 Both research runners skip strong QA and IC on training examples because those
@@ -230,3 +231,45 @@ The equivalent local development readout is `aca viability --out OUTPUT_DIRECTOR
 executed on real research data:** probe training, validation viability, adaptive
 policy selection and held-out baseline/accuracy–cost comparisons. Synthetic
 end-to-end checks cover those code paths; they are not research evidence.
+
+
+## Frozen viability criteria (before the 1024/256 run)
+
+User-authorized Qwen-14B development check. Rules are versioned in
+`src/aca/viability.py`, written to `viability_protocol.json` **before** any query
+prediction, and bound to the dataset manifest. Later changes are rejected.
+The dataset/model commits are fixed to those used in the verified pilot.
+The runner checks that no final-test prediction exists before and after the run.
+
+All gates must pass:
+
+1. On all 256 validation queries, Qwen-14B exact match minus Phi exact match
+   must be at least **0.05** (13 or more net additional correct answers).
+2. Rescue at least **20%** of Phi errors; introduced errors must be no more
+   than **50%** of rescues. Zero rescues fails this gate.
+3. One calibration-selected routing rule must pass the assessment half:
+   accuracy improvement over Phi of at least `max(0.03, 0.5 * max(Qwen-Phi, 0))`,
+   with warm additive service cost at most **0.80** of Qwen-only cost. This
+   requires both at least three percentage points of improvement and recovery
+   of at least half the strong-model advantage where positive. The same
+   constraints must hold in calibration for the rule to be eligible.
+
+The 256 query IDs are sorted by SHA256(`4901:query_id`). First 128 form
+calibration; last 128 form assessment. Logistic weights use the 1024 training
+labels only. Choose C from `[0.01, 0.1, 1, 10]` by calibration log loss.
+Enumerate cheap-only and always-IC policies at thresholds `[-0.01, 0, 0.05,
+..., 1, 1.01]`. Among eligible calibration policies choose greatest accuracy,
+then lowest mean cost; fixed enumeration breaks remaining ties. Freeze this
+one policy before assessment. No adaptive acquisition policy is tuned here.
+Cheap routing pays small QA + CPU probe + deferred strong QA; always-IC pays
+small QA + IC + deferred strong QA. Loading/warmup/training are separate.
+If no calibration policy is eligible, retain a diagnostic policy and fail gate 3.
+
+Report every gate, both validation partitions, rescue/harm counts, truncations,
+per-query scores/times, probe weights and a 10,000-repeat paired-bootstrap 95%
+interval (seed 4901) for the model accuracy difference. Intervals are descriptive,
+not an extra significance gate. These effect-size thresholds are project screening
+choices, not claims of a published standard. Single-pass timings remain estimates.
+No optional stopping, criterion relaxation or repeated pair changes to obtain a
+pass. A failed check triggers a model-pair recommendation before any full hypothesis
+run; it does not by itself disprove selective IC acquisition.

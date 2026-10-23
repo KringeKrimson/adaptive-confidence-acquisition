@@ -19,6 +19,8 @@ def test_cached_end_to_end_analysis(tmp_path):
             queries.append(dict(id=f'{part}{i}',question=f'Question {part} {i}',
                                 split=part,source_split='synthetic',aliases=['answer']))
     atomic_json(tmp_path/'queries.json',dict(queries=queries))
+    from aca.viability import freeze_protocol
+    freeze_protocol(tmp_path)
     manifest=dict(synthetic_test_only=True)
     atomic_json(tmp_path/'inference_manifest.json',manifest)
     for q in queries:

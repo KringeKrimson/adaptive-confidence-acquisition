@@ -42,7 +42,9 @@ def select_probe(x, y, splits):
 
 def viability(root):
     """Development readout: no test predictions read, no hypothesis conclusion."""
+    from .viability import PROTOCOL, calibration_mask, check_protocol, screen_pair
     root = Path(root)
+    frozen = check_protocol(root)
     queries = read_json(root/'queries.json')['queries']
     validate_splits(queries)
     development = [q for q in queries if q['split'] != 'test']
@@ -54,25 +56,61 @@ def viability(root):
         raise ValueError('Mixed inference configurations in cache')
     split = np.array([q['split'] for q in development])
     y = np.array([r['correct'] for r in small])
+    calibration = calibration_mask(validation)
+    calibration_ids = {q['id'] for q,use in zip(validation,calibration) if use}
+    fit_mask = np.array([q['split']=='train' or q['id'] in calibration_ids for q in development])
+    x = np.array([r['features'] for r in small],dtype=np.float64)
     start = time.perf_counter()
-    c, probe, losses = select_probe(np.array([r['features'] for r in small]),y,split)
+    c, probe, losses = select_probe(x[fit_mask],y[fit_mask],split[fit_mask])
     elapsed = time.perf_counter()-start
     val_small = [r for q,r in zip(development,small) if q['split']=='validation']
     sy = y[split=='validation']
     ty = np.array([r['correct'] for r in strong])
-    cheap = probe.predict_proba(np.array([r['features'] for r in val_small]))[:,1]
-    report = dict(scope='Development viability only. Probe C selected on this validation set; metrics are not held-out hypothesis evidence.',
+    cheap, probe_seconds = [], []
+    probe.predict_proba(x[:1])
+    for feature in x[split=='validation']:
+        start = time.perf_counter()
+        cheap.append(float(probe.predict_proba(feature[None,:])[0,1]))
+        probe_seconds.append(time.perf_counter()-start)
+    cheap = np.array(cheap)
+    data = dict(small_correct=sy,strong_correct=ty,cheap=cheap,ic=np.array([r['ic'] for r in ic]),
+        small_seconds=np.array([r['elapsed_seconds'] for r in val_small]),
+        strong_seconds=np.array([r['elapsed_seconds'] for r in strong]),
+        ic_seconds=np.array([r['elapsed_seconds'] for r in ic]),probe_seconds=np.array(probe_seconds))
+    screen = screen_pair(data,calibration)
+    manifest = read_json(root/'inference_manifest.json')
+    valid_setup = (sum(split=='train')==PROTOCOL['n_train'] and len(validation)==PROTOCOL['n_validation']
+                   and manifest.get('model_roles')==PROTOCOL['model_roles']
+                   and manifest.get('model_revisions')==PROTOCOL['model_revisions']
+                   and read_json(root/'queries.json').get('revision')==PROTOCOL['dataset_revision']
+                   and manifest.get('quantization')==PROTOCOL['quantization'])
+    report = dict(scope='Frozen development viability screen. C and one routing rule selected on calibration only; final test is unused. This is not the adaptive-acquisition hypothesis test.',
         n_train=int(sum(split=='train')),n_validation=len(validation),test_predictions_read=0,
-        model_roles=read_json(root/'inference_manifest.json').get('model_roles'),
+        status=('PASS' if screen['passed'] else 'FAIL') if valid_setup else 'INVALID_SIZE_OR_CONFIG',
+        protocol_hash=fingerprint(frozen),screen=screen,valid_setup=bool(valid_setup),
+        model_roles=manifest.get('model_roles'),
         small_accuracy=float(sy.mean()),strong_accuracy=float(ty.mean()),
         rescues=int(sum((sy==0)&(ty==1))),harms=int(sum((sy==1)&(ty==0))),
         oracle_accuracy=float(np.maximum(sy,ty).mean()),
         mean_seconds={s:float(np.mean([r['elapsed_seconds'] for r in rows]))
                       for s,rows in [('small',val_small),('strong',strong),('ic',ic)]},
         confidence=dict(cheap=confidence_metrics(sy,cheap),ic=confidence_metrics(sy,[r['ic'] for r in ic])),
+        confidence_assessment=dict(cheap=confidence_metrics(sy[~calibration],cheap[~calibration]),
+                                   ic=confidence_metrics(sy[~calibration],data['ic'][~calibration])),
+        strong_minus_small_bootstrap_95=bootstrap_delta(ty,sy,repeats=PROTOCOL['bootstrap_repeats']),
         probe_C=c,validation_losses=losses,training_seconds=elapsed,
         train_ids=[q['id'] for q in development if q['split']=='train'],
-        validation_ids=[q['id'] for q in validation])
+        validation_ids=[q['id'] for q in validation],
+        calibration_ids=[q['id'] for q,use in zip(validation,calibration) if use],
+        assessment_ids=[q['id'] for q,use in zip(validation,calibration) if not use])
+    scaler,classifier = probe.steps[0][1],probe.steps[1][1]
+    atomic_json(root/'viability_probe.json',dict(C=c,mean=scaler.mean_.tolist(),scale=scaler.scale_.tolist(),
+        coefficients=classifier.coef_.tolist(),intercept=classifier.intercept_.tolist(),
+        selection_ids=report['calibration_ids'],training_ids=report['train_ids']))
+    atomic_json(root/'viability_rows.json',[
+        dict(id=q['id'],partition='calibration' if use else 'assessment',
+             **{key:float(values[i]) for key,values in data.items()})
+        for i,(q,use) in enumerate(zip(validation,calibration))])
     atomic_json(root/'viability.json',report)
     return report
 
