@@ -79,3 +79,18 @@ def test_new_protocol_preserves_original_gates_and_is_separate(tmp_path):
     old=screen_pair(pair_data(),np.arange(20)<10)
     new=screen_pair(pair_data(),np.arange(20)<10,NEW)
     assert old['gates']==new['gates'] and old['selected_policy']==new['selected_policy']
+
+
+def test_smoke_accepts_resumed_memory_checkpoints(tmp_path):
+    from aca.prospective import smoke_check,PROTOCOL
+    from aca.storage import record_path
+    queries=[dict(id='smoke',question='q',split='train',aliases=['a'])]
+    atomic_json(tmp_path/'queries.json',dict(queries=queries))
+    for stage in ['small','strong','ic']:
+        row=dict(elapsed_seconds=.1,features=[0.]*1536,ic=.5,p_yes=[[.5]*29]*6,yes_no_ids=[9454,2753])
+        from aca.storage import fingerprint
+        row['query_hash']=fingerprint(queries[0])
+        atomic_json(record_path(tmp_path,stage,queries[0]),row)
+    for i,model in enumerate([*PROTOCOL['model_roles'].values(),PROTOCOL['model_roles']['small']]):
+        atomic_json(tmp_path/'overhead'/f'{i}-memory-{i}.json',dict(model=model,total_bytes=2**30,peak_reserved_bytes=2**29))
+    assert smoke_check(tmp_path)['passed']

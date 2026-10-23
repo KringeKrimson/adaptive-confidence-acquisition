@@ -84,7 +84,7 @@ def smoke_check(root):
                 assert np.isclose(row['ic'],aggregate_ic(row['p_yes']),atol=1e-12)
         result[stage]=dict(n=len(rows),mean_seconds=float(np.mean([r['elapsed_seconds'] for r in rows])))
     memory=[read_json(p) for p in (root/'overhead').glob('*-memory-*.json')]
-    assert len(memory)==2
+    assert {row['model'] for row in memory}==set(PROTOCOL['model_roles'].values())
     for row in memory:
         assert row['total_bytes']-row['peak_reserved_bytes']>256*1024**2
     result.update(passed=True,memory=memory,accuracy_gate=False)
