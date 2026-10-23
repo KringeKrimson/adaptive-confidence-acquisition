@@ -1,7 +1,10 @@
 # Adaptive Confidence Acquisition for Cost-Aware LLM Routing
 
 COMP4901B experiment: does acquiring query-level Internal Confidence (IC) only
-near an ambiguous cheap-probe decision improve a Phi-3 → Qwen cascade?
+near an ambiguous cheap-probe decision improve a small-to-strong cascade?
+The current prospective pair is Qwen2.5-1.5B → Qwen2.5-14B. It passed the frozen
+development screen; adaptive IC's benefit is not yet established. Historical
+Phi/Qwen pilots and the unchanged failed Phi→Qwen-14B screen are retained below.
 
 ## Run
 
@@ -332,7 +335,7 @@ transfer and tokenizer settings; Phi's confidence cache cannot be reused for it.
 A new development protocol must be frozen before that check, with a matched
 short-answer/stopping rule fixed in advance and the final test still unused.
 Do not switch pairs repeatedly until a pass or promote development comparisons
-to final-test hypothesis evidence. No replacement run has been launched.
+to final-test hypothesis evidence. At this checkpoint no replacement run had been launched.
 
 ## Prospective Qwen-1.5B → Qwen-14B screen (pre-inference protocol)
 
@@ -395,3 +398,58 @@ then reports all eight fixed operating points on the assessment half, including
 incremental IC cost and paired intervals. Neither command collects or reads final
 test predictions. A future final-test evaluator must consume this frozen artifact
 without refitting on the combined development data.
+
+## Prospective result: PASS; adaptive benefit remains unestablished
+
+[Kaggle version 361511726](https://www.kaggle.com/code/sushobhanrai/adaptive-confidence-acquisition-pilot?scriptVersionId=361511726)
+completed in 24m38s on T4×2, using pre-inference commit `cc15cdd` and frozen
+protocol/data hash `765a1ebffc54e7d4c10d92be26cd6aa4000ad51f646bd29250b9731414f65b18`.
+The automatic eight-training-query smoke passed and scaled without intervention.
+All 1280 small QA/features, 256 strong QA and 256 IC records were downloaded
+and verified; separate smoke outputs contain eight records per stage. No old
+development/pilot overlaps and no final-test queries or inference records.
+
+| Frozen criterion | Measured result | Verdict |
+| --- | --- | --- |
+| Strong advantage ≥5 points | Small 82/256 (32.03%); strong 152/256 (59.38%); +27.34 points | PASS |
+| Rescue ≥20%; harms ≤half rescues | 76/174 errors rescued (43.68%); six harms (7.89% of rescues) | PASS |
+| Required gain at ≤80% strong-only cost in both halves | Calibration 47.66% vs small 27.34%, at 77.88% cost; assessment 48.44% vs small 36.72%, at 77.99% cost | PASS |
+
+The calibration-selected rule defers when cheap confidence <0.15. Assessment
+gain is 11.72 points against a required 10.16; cost is 1.273 s/query versus
+strong-only 1.632 s. Three calibration candidates were eligible. The model
+accuracy-gap bootstrap95 is [21.09,33.59] points. C=0.01; assessment correctness
+AUROC is 0.789 cheap / 0.697 IC, whereas rescue-prediction AUROCs are 0.563/0.560.
+
+Mean whole-validation times: small QA 0.338 s, strong QA 1.629 s, additional IC
+0.134 s. Small QA+IC is 28.9% of strong-only time before escalation. Peak reserved
+GPU0 memory was 1.62 GiB small / 12.66 GiB strong, against 14.56 GiB available
+per T4. Collection ran sequentially on GPU0; warm two-model service assumes one
+resident model per T4. These additive service timings do not measure a live
+two-GPU deployment's queue/communication latency. Loads, warmups, smoke and IC
+projection checks are separately recorded. Actual-GPU full-vocabulary versus
+reduced IC projection error was 9.54e-7 in both checks. No small answer reached
+the 64-token cap; two strong validation answers did.
+
+After PASS, committed selector `2a34b21` froze eight operating points and the
+portable probe in [`results/qwen15_methods.json`](results/qwen15_methods.json),
+hash `59ef6e267603260190ade5468e7e54d248c25ba11ababec32cdb276d220fa8ed`.
+Only calibration rows were used; NaN-corruption tests confirm assessment values
+cannot affect selection. All fixed choices were then replayed on assessment,
+with all costs included and random acquisition matched in expected IC seconds.
+The assessment replay is a development check, not final-test hypothesis evidence.
+
+At penalties 0–0.2 the selected adaptive rule uses IC for 4.69% of assessment
+queries: 56.25% accuracy at 1.833 s, versus cheap-only 55.47% at 1.892 s, but
+strong-only is 57.03% at 1.632 s. At penalty 0.4, adaptive gives 40.63% at
+0.587 s versus random IC's 42.63% at 0.812 s; equal IC cost does not imply equal
+total cost. The 0.8 and 1.6 points acquire no IC. Every adaptive-minus-random
+accuracy interval includes zero. These outcomes do not establish an IC advantage;
+the pair's viability PASS must not be confused with a positive hypothesis result.
+
+Aggregates: [`qwen15_viability.json`](results/qwen15_viability.json) and
+[`qwen15_development.json`](results/qwen15_development.json). Raw predictions,
+features, IC matrices, timings, overheads and plots remain in ignored `outputs/`
+and the immutable Kaggle output. The next experiment is evaluation of these
+frozen choices on the reserved final test, without changing grids/probe/selection
+after this readout. That final-test experiment has not been run.
