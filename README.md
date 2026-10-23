@@ -227,10 +227,11 @@ correctness labels remain necessary. `collect --splits ...` schedules subsets
 without changing the per-query inference configuration or overwriting results.
 The equivalent local development readout is `aca viability --out OUTPUT_DIRECTORY`.
 
-**Executed:** paired GPU pilots and IC diagnostics. **Implemented but not yet
-executed on real research data:** probe training, validation viability, adaptive
-policy selection and held-out baseline/accuracy–cost comparisons. Synthetic
-end-to-end checks cover those code paths; they are not research evidence.
+**Executed:** paired GPU pilots, IC diagnostics, and the development viability
+screen reported below, including real probe training and calibration selection.
+**Implemented but not yet executed on real final-test data:** adaptive policy
+selection and held-out baseline/accuracy–cost comparisons. Synthetic end-to-end
+checks cover those code paths; they are not research evidence.
 
 
 ## Frozen viability criteria (before the 1024/256 run)
@@ -273,3 +274,62 @@ choices, not claims of a published standard. Single-pass timings remain estimate
 No optional stopping, criterion relaxation or repeated pair changes to obtain a
 pass. A failed check triggers a model-pair recommendation before any full hypothesis
 run; it does not by itself disprove selective IC acquisition.
+
+## Development viability result: FAIL (2026-10-23)
+
+[Kaggle version 361483712](https://www.kaggle.com/code/sushobhanrai/adaptive-confidence-acquisition-pilot?scriptVersionId=361483712)
+completed in 1972.6 seconds using source commit `f356c74`, committed before
+collection. The frozen protocol/dataset hash is
+`d5501a68905e4ff6f1939980ac8d61fc2f053ca4f63c2413730931a0075e39b9`.
+The criteria above were unchanged. Aggregate results are saved in
+[`results/viability14b.json`](results/viability14b.json).
+
+Trained the cheap probe on 1024 training queries; C=0.01 was selected on the
+128-query calibration half. The other 128 validation queries assessed the fixed
+rule. Downloaded and verified all 1280 Phi QA/features, 256 Qwen QA and 256 IC
+records, including labels, finite features, IC aggregation, portable probe scores,
+cache hashes, partition membership and timing replay. Reserved pilot IDs/questions
+do not overlap. The final 512-query test has **zero inference records**.
+
+| Frozen gate | Observed validation result | Verdict |
+| --- | --- | --- |
+| Qwen advantage ≥5 percentage points | Phi 101/256 (39.45%); Qwen 160/256 (62.50%); +23.05 points | PASS |
+| Rescue ≥20% of Phi errors; harms ≤50% of rescues | 74/155 errors rescued (47.74%); 15 harms (20.27% of rescues) | PASS |
+| Recover ≥half the accuracy advantage, at ≤80% of Qwen-only cost, on calibration and assessment | No calibration candidate eligible; fixed diagnostic rule has zero assessment gain | FAIL |
+
+The descriptive paired-bootstrap 95% interval for Qwen minus Phi is
+[16.41, 29.69] percentage points. Mean validation service times were Phi 0.700 s,
+Qwen 1.661 s, and additional IC 0.409 s/query. Thus answering with Phi first
+already consumes 42.2% of Qwen-only time; always acquiring IC raises the base to
+66.8% before any strong-model calls. These are single-pass additive timing
+estimates, including required CPU probe scoring, not production latency benchmarks.
+
+The budget-feasible diagnostic rule (cheap confidence <0.10 defers) was chosen
+on calibration despite no eligible rule. It attained 58/128 (45.31%) at 1.273 s
+(75.55% of Qwen-only cost) on calibration, below the required 50.78% accuracy.
+On assessment it attained 52/128 (40.63%) at 1.154 s (70.49% of Qwen-only),
+matching Phi and below the required 51.17%. It is a diagnostic, not a successful
+selected policy. The least-cost calibration cheap rule meeting the accuracy target
+cost 92.19% of Qwen-only; the corresponding always-IC minimum was 111.14%.
+Assessment cheap/IC correctness AUROCs were 0.648/0.624.
+
+The fixed 32-token cap was reached by 69/1024 Phi training answers, 16/256 Phi
+validation answers and 1/256 Qwen answers; all were incorrect under the unchanged
+strict alias exact-match rule. Some Phi outputs contain an answer followed by
+unsolicited text. No post-hoc extraction, token-limit changes or rescoring were
+used to turn this failure into a pass. Findings apply to this quantized prompting,
+decoding and scoring configuration. The result does not establish that adaptive
+acquisition itself fails, since that hypothesis experiment was not launched.
+
+**Recommendation before a full experiment:** screen
+[`Qwen2.5-1.5B-Instruct`](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct)
+as small and retain Qwen2.5-14B-Instruct as strong. Qwen's official card identifies
+the public Apache-2.0 model as 1.54B parameters. A cheaper first model is a
+reasoned candidate for reducing the measured overhead; its speed, rescue pattern
+and routing benefit are **unmeasured**, not established improvements. Changing
+the small model requires new features/probe and explicit verification of the IC
+transfer and tokenizer settings; Phi's confidence cache cannot be reused for it.
+A new development protocol must be frozen before that check, with a matched
+short-answer/stopping rule fixed in advance and the final test still unused.
+Do not switch pairs repeatedly until a pass or promote development comparisons
+to final-test hypothesis evidence. No replacement run has been launched.
