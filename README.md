@@ -450,9 +450,8 @@ the pair's viability PASS must not be confused with a positive hypothesis result
 Aggregates: [`qwen15_viability.json`](results/qwen15_viability.json) and
 [`qwen15_development.json`](results/qwen15_development.json). Raw predictions,
 features, IC matrices, timings, overheads and plots remain in ignored `outputs/`
-and the immutable Kaggle output. The next experiment is evaluation of these
-frozen choices on the reserved final test, without changing grids/probe/selection
-after this readout. That final-test experiment has not been run.
+and the immutable Kaggle output. At this development checkpoint, the reserved
+final test had not been run. The subsequently authorized evaluation is below.
 
 ## Confirmatory pre-test addendum
 
@@ -488,3 +487,72 @@ routing changes are reported. Frontier identification is descriptive; it selects
 no new deployment operating point. Model loading, warmups, offline collection
 expenditure and additive warm cascade costs are separated. Build with
 `python scripts/kaggle_bundle.py --mode confirmatory --out outputs/kaggle-confirmatory-bundle`.
+
+## Final-test result: no meaningful adaptive-IC advantage
+
+[Kaggle version 361548397](https://www.kaggle.com/code/sushobhanrai/adaptive-confidence-acquisition-pilot?scriptVersionId=361548397)
+completed in **27m58s** on T4×2 using pre-test commit `92ea9ce`. All 512 reserved
+questions were evaluated once per component; no fitting, threshold search or
+policy selection used test outcomes. The methods, protocol, cohort, model
+revisions and inference implementation match the pre-test commitments.
+The complete GPU report is [`qwen15_confirmatory.json`](results/qwen15_confirmatory.json).
+
+All eight fixed points are reported, grouped here only where identical:
+
+| Penalty (point indices) | Adaptive EM | Matched cheap EM | Seconds/query, both | Difference, points | Familywise 95% paired interval, points |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 0, .025, .05, .1, .2 (0–4) | 60.55% | 60.51% | 2.1161 | +0.04 | [−0.86, +0.82] |
+| .4 (5) | 33.59% | 34.93% | .7732 | −1.34 | [−4.14, +1.42] |
+| .8, 1.6 (6–7; no IC) | 26.56% | 26.56% | .3338 | 0 | [0, 0] |
+
+Neither IC-using rule has a statistically positive difference. Both simultaneous
+upper bounds are below the pre-test practical threshold of three points. Under
+the precommitted criterion, the test rejects a meaningful ≥3-point improvement
+for these frozen policies/model settings; it does not reject every possible
+adaptive router. No test-selected operating point is promoted.
+
+Mean measured component costs were .3336 s small QA, 1.8655 s strong QA,
+.1514 s additional IC and .000176 s CPU probe. Points 0–4 acquire IC on 23/512
+(4.49%) and escalate on 484/512 (94.53%); IC adds 3.452 s across the cohort,
+or .00674 s/query. Its seven routing changes are one beneficial, three harmful
+and three neutral relative to that same rule with IC disabled. Point 5 acquires
+IC on 112/512 (21.88%) and escalates on 100/512 (19.53%); IC adds 17.006 s,
+or .03321 s/query. Its 100 routing changes yield 36 beneficial, zero harmful
+and 64 neutral outcomes. This improvement over its no-escalation initial rule
+still fails to beat cheap routing at the same total cost. Adaptive p50/p95
+additive latency is 2.074/2.873 s at points 0–4 and .331/2.506 s at point 5.
+
+Small-only scores 26.56% at .3336 s; strong-only 61.72% at 1.8655 s. Raw cheap
+routing's high-accuracy point scores 61.13% at 2.1490 s. Always-IC scores either
+61.72% at 2.3504 s or 26.56% at .4849 s; strong-only/small-only dominate those
+points. The IC-budget-matched random control scores 61.20–61.36% at
+2.1740–2.1848 s for points 0–4 and 35.65% at .8898 s for point 5. It matches
+expected IC seconds, not total service cost; all secondary paired intervals are
+in the report.
+
+The **descriptive nondominated set among the evaluated fixed points** is
+small-only, point-5 matched cheap mixture (34.93%, .7732 s), point-5 random IC
+(35.65%, .8898 s) and strong-only. No adaptive or always-IC point is in this set.
+This finite-point comparison is not a claim of optimality over untested mixtures.
+The plot is saved as `outputs/kaggle-confirmatory-v7/outputs/confirmatory/confirmatory_accuracy_cost.png`.
+
+Offline cache collection consumed 512 calls each for small QA, strong QA and IC:
+170.797 + 955.132 + 77.494 = 1203.422 measured service seconds. Cold model loads
+added 329.298 s, with warmups/projection verification recorded separately. Peak
+reserved memory was 1.64 GiB small / 12.66 GiB strong on a 14.56 GiB T4. Two
+strong answers reached the unchanged 64-token cap; none of the small answers did.
+Costs are warm additive component times measured sequentially on GPU0, not live
+two-GPU queue/communication latency or monetary charges.
+
+All 1536 component records, 512 feature vectors, IC matrices, predictions,
+scores, timings, eight decision files, configurations and plots are preserved in
+the immutable Kaggle output and ignored local archive `outputs/results(7).zip`.
+[`qwen15_confirmatory_provenance.json`](results/qwen15_confirmatory_provenance.json)
+records the archive SHA256, source commit and run ID. Independent label, IC,
+probe, policy/cost and random-budget checks passed; all 10,000 paired bootstrap
+results reproduced exactly locally. To repeat these offline scientific checks
+and regenerate the plot from the extracted cache, run
+`python scripts/verify_confirmatory.py outputs/kaggle-confirmatory-v7/outputs/confirmatory`.
+The audit is [`qwen15_confirmatory_audit.json`](results/qwen15_confirmatory_audit.json).
+Any future method changes require a new prospective evaluation; this test is now
+consumed and must not become tuning data for another confirmatory claim.
