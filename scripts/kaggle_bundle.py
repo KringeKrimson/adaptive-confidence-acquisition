@@ -44,9 +44,10 @@ subprocess.check_call([sys.executable, '/kaggle/working/aca-source/kaggle/runner
     if resume_kernel:
         execution = execution.replace('# A fresh process',
             f"experiment_env['ACA_RESUME_FROM'] = '/kaggle/input/{resume_kernel}/outputs/{mode}'\n# A fresh process")
+    strong_label = '14B' if mode == 'pilot14b' else '7B'
     cells = [dict(id='description',cell_type='markdown',metadata={},source=[
         '# Adaptive Confidence Acquisition\n',
-        f'Source commit `{commit}`. Mode: **{mode}**. Phi-3-mini → Qwen2.5-7B-Instruct. Requires GPU and Internet; no Hugging Face token or gated access.\n',
+        f'Source commit `{commit}`. Mode: **{mode}**. Phi-3-mini → Qwen2.5-{strong_label}-Instruct. Requires GPU and Internet; no Hugging Face token or gated access.\n',
         'Save & Run All to retain per-query outputs. Experimental logic lives in Python modules.'])]
     for cell_id,code in [('extract',extraction),('install',installation),('run',execution)]:
         cells.append(dict(id=cell_id,cell_type='code',metadata={},execution_count=None,outputs=[],source=code.splitlines(True)))
@@ -66,7 +67,7 @@ subprocess.check_call([sys.executable, '/kaggle/working/aca-source/kaggle/runner
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--owner',default='sushobhanrai')
-    parser.add_argument('--mode',choices=['pilot','research','diagnostic'],default='pilot')
+    parser.add_argument('--mode',choices=['pilot','pilot14b','research','diagnostic'],default='pilot')
     parser.add_argument('--out',default='outputs/kaggle-bundle')
     parser.add_argument('--resume-kernel')
     args = parser.parse_args()

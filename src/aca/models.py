@@ -19,7 +19,7 @@ def synchronize():
         torch.cuda.synchronize()
 
 
-def load_model(name, revision, quantization='4bit'):
+def load_model(name, revision, quantization='4bit-fp32'):
     from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
     if not torch.cuda.is_available():
         raise RuntimeError('A CUDA GPU is required for the research run. Local tests use tiny random models only.')

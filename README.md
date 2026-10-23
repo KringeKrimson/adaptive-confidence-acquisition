@@ -16,7 +16,7 @@ CUDA and Internet are required. Both official model repositories are accessed
 anonymously; no Hugging Face token, approval, or notebook secret is needed.
 The pilot uses `microsoft/Phi-3-mini-4k-instruct` and
 `Qwen/Qwen2.5-7B-Instruct`, greedy decoding, 32 maximum answer tokens,
-batch size one, and NF4 4-bit weights (FP16 compute). Both models run sequentially
+batch size one, and NF4 4-bit weights (FP32 compute and unquantized modules by default). Both models run sequentially
 on GPU 0 to fit a 16 GB Kaggle GPU. This quantized experiment is **not** a
 reproduction of the papers' full-precision results. `--quantization none` is
 available on sufficiently large GPUs.
@@ -173,3 +173,16 @@ guard and compares NF4 FP16 against NF4 FP32 compute and unquantized-module dtyp
 subsequent measured generation times. It prevents NaN/Inf logits from silently
 becoming greedy token IDs; it does not repair or filter answers. A failed
 numerical check stops collection rather than caching an invalid prediction.
+
+
+The numerical diagnostic [version 361396801](https://www.kaggle.com/code/sushobhanrai/adaptive-confidence-acquisition-pilot?scriptVersionId=361396801)
+completed in 443.7 seconds at commit `88a3a0f`. The finite-logit guard rejected
+FP16 Qwen inference. NF4 with FP32 compute/modules completed 32 paired QA calls
+and 32 IC estimates: Phi-3 16/32, 0.611 s/query; Qwen-7B 14/32, 0.875 s/query;
+no truncations. Qwen rescued two errors and introduced four. Mean IC cost was
+0.397 s/query (65% of small QA time); all saved IC matrices were independently
+reaggregated. FP32 is now the default; legacy FP16 remains an explicit diagnostic
+option `--quantization 4bit`. This pilot is too small for model-quality conclusions,
+but does not establish the intended strong-model advantage. The next reserved-pilot
+check uses the prespecified Qwen-14B alternative (`--mode pilot14b`); no research
+thresholds or probes have yet been trained on real model outputs.

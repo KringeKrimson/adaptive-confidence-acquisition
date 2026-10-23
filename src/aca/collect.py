@@ -39,7 +39,7 @@ def resolve_revisions(small=models.SMALL, strong=models.STRONG):
     return revisions
 
 
-def collect(root, stages=('small', 'strong'), max_new_tokens=32, quantization='4bit', strong_model=models.STRONG):
+def collect(root, stages=('small', 'strong'), max_new_tokens=32, quantization='4bit-fp32', strong_model=models.STRONG):
     root = Path(root)
     dataset = read_json(root / 'queries.json')
     queries = dataset['queries']

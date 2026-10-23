@@ -15,6 +15,10 @@ def run(mode='pilot', resume_from=None):
     if mode == 'pilot':
         main(['prepare','--out',str(root),'--test','32'])
         main(['collect','--out',str(root)])
+    elif mode == 'pilot14b':
+        main(['prepare','--out',str(root),'--test','32'])
+        main(['collect','--out',str(root),'--strong-model','Qwen/Qwen2.5-14B-Instruct',
+              '--stages','small','strong','ic'])
     elif mode == 'research':
         # Reserve the deterministic pilot even when this is a fresh Kaggle session.
         pilot = root.parent / 'pilot'
@@ -37,7 +41,7 @@ def run(mode='pilot', resume_from=None):
                 atomic_json(trial/'numerical_failure.json',dict(error=str(error)))
                 print(f'{precision}: {error}', flush=True)
     else:
-        raise ValueError('mode must be pilot, research, or diagnostic')
+        raise ValueError('mode must be pilot, pilot14b, research, or diagnostic')
 
 
 if __name__ == '__main__':
