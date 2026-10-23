@@ -29,6 +29,10 @@ def main(argv=None):
     p.add_argument('--random-seeds',type=int,default=20)
     p = sub.add_parser('summary')
     p.add_argument('--out',required=True)
+    p = sub.add_parser('freeze-methods')
+    p.add_argument('--out',required=True)
+    p = sub.add_parser('compare-development')
+    p.add_argument('--out',required=True)
     p = sub.add_parser('viability')
     p.add_argument('--out',required=True)
     p.add_argument('--protocol',choices=['original','qwen15'],default='original')
@@ -54,6 +58,14 @@ def main(argv=None):
         else:
             report=viability(root)
         print(json.dumps(report,indent=2))
+    elif command == 'freeze-methods':
+        from .frozen import freeze_methods
+        from .storage import fingerprint
+        report=freeze_methods(root)
+        print('Frozen methods:',fingerprint(report),'operating points:',len(report['selected']))
+    elif command == 'compare-development':
+        from .frozen import compare_development
+        print(json.dumps(compare_development(root),indent=2))
     else:
         from .collect import pilot_summary
         pilot_summary(root)

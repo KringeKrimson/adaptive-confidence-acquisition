@@ -379,6 +379,19 @@ The original diagnostic rule escalated 74 queries: 16 rescues, seven harms,
 meet the validation target at 51.9% of strong-only cost; thus overhead alone does
 not make the goal impossible. Calibration-only exploratory adaptive replay adds
 one correct answer (0.78 points) over the best budget-feasible cheap rule, still
-below the target. No assessment optimization or original policy changes were made.
+below the target. This coarse-grid difference does not establish an IC benefit:
+a calibration-only randomized mixture of two cheap thresholds reaches 49.65%
+at the same expected 1.329 s cost, versus adaptive IC's 46.09% (−3.55 points).
+The mixture is descriptive and is not an original-screen candidate. No assessment
+optimization or original policy changes were made.
 First-line-only diagnostic rescoring finds ten extra Phi validation matches,
 six among 16 cap hits; this motivates prospective stopping, not retroactive repair.
+
+After a prospective PASS, `aca freeze-methods --out OUTPUT` retains the fitted
+probe and selects the existing adaptive/cheap/always-IC grids and 20-seed random
+control on calibration only. It binds the weights, grids, selected rules and
+implementation hash in `methods_frozen.json`. `aca compare-development --out OUTPUT`
+then reports all eight fixed operating points on the assessment half, including
+incremental IC cost and paired intervals. Neither command collects or reads final
+test predictions. A future final-test evaluator must consume this frozen artifact
+without refitting on the combined development data.
