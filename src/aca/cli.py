@@ -18,6 +18,8 @@ def main(argv=None):
     p.add_argument('--stages',nargs='+',choices=['small','strong','ic'],default=['small','strong'])
     p.add_argument('--max-new-tokens',type=int,default=32)
     p.add_argument('--quantization',choices=['4bit','none'],default='4bit')
+    p.add_argument('--strong-model',choices=['Qwen/Qwen2.5-7B-Instruct','Qwen/Qwen2.5-14B-Instruct'],
+                   default='Qwen/Qwen2.5-7B-Instruct')
     p = sub.add_parser('analyze')
     p.add_argument('--out',required=True)
     p.add_argument('--random-seeds',type=int,default=20)

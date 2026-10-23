@@ -16,7 +16,7 @@ def test_prepare_excludes_inspected_pilot_from_all_splits(tmp_path,monkeypatch):
                    answer=dict(value='answer',aliases=['answer'])) for i in range(100)]
         return Stream(rows)
     monkeypatch.setattr(datasets,'load_dataset',load)
-    monkeypatch.setattr(huggingface_hub,'HfApi',lambda:SimpleNamespace(
+    monkeypatch.setattr(huggingface_hub,'HfApi',lambda **kwargs:SimpleNamespace(
         dataset_info=lambda *a,**kw:SimpleNamespace(sha='revision')))
     pilot=tmp_path/'pilot.json'
     reserved=[dict(id='v0',question='v question 0',aliases=['answer'],split='test')]

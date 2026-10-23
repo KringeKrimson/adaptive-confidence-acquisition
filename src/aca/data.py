@@ -51,7 +51,7 @@ def prepare(root, train=0, validation=0, test=32, seed=4901, revision=None, excl
             raise ValueError('Dataset sampling changed; use a new output directory')
         validate_splits(saved['queries'])
         return saved
-    revision = HfApi().dataset_info(DATASET, revision=revision).sha
+    revision = HfApi(token=False).dataset_info(DATASET, revision=revision).sha
     queries = []
     seen_ids = {q['id'] for q in excluded_queries}
     seen_questions = {question_key(q['question']) for q in excluded_queries}
@@ -62,7 +62,7 @@ def prepare(root, train=0, validation=0, test=32, seed=4901, revision=None, excl
             continue
         if source == 'validation' and not test:
             continue
-        ds = load_dataset(DATASET, CONFIG, split=source, streaming=True, revision=revision)
+        ds = load_dataset(DATASET, CONFIG, split=source, streaming=True, revision=revision, token=False)
         ds = ds.shuffle(seed=seed, buffer_size=10000)
         for row in ds:
             split = train_partition(row['question'], seed) if source == 'train' else 'test'

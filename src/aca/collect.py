@@ -28,32 +28,40 @@ def source_hash():
 
 
 def resolve_revisions(small=models.SMALL, strong=models.STRONG):
-    from huggingface_hub import HfApi, hf_hub_download
-    revisions = {name: HfApi().model_info(name).sha for name in [small, strong]}
-    # Fail before GPU work if access to the gated strong model is missing.
+    from huggingface_hub import HfApi, hf_hub_download, hf_hub_url, get_hf_file_metadata
+    infos = {name: HfApi(token=False).model_info(name) for name in [small, strong]}
+    revisions = {name: info.sha for name,info in infos.items()}
+    # Test anonymous weight access, not just publicly visible model metadata.
     for name, sha in revisions.items():
-        hf_hub_download(name, 'config.json', revision=sha)
+        hf_hub_download(name, 'config.json', revision=sha, token=False)
+        shard = next(f.rfilename for f in infos[name].siblings if f.rfilename.endswith('.safetensors'))
+        get_hf_file_metadata(hf_hub_url(name,shard,revision=sha),token=False)
     return revisions
 
 
-def collect(root, stages=('small', 'strong'), max_new_tokens=32, quantization='4bit'):
+def collect(root, stages=('small', 'strong'), max_new_tokens=32, quantization='4bit', strong_model=models.STRONG):
     root = Path(root)
     dataset = read_json(root / 'queries.json')
     queries = dataset['queries']
+    if strong_model not in models.STRONG_MODELS:
+        raise ValueError('Use a supported public Qwen strong model')
     if not torch.cuda.is_available():
         raise RuntimeError('CUDA GPU unavailable; select a Kaggle GPU accelerator')
     revision_path = root / 'model_revisions.json'
     if revision_path.exists():
         revisions = read_json(revision_path)
     else:
-        revisions = resolve_revisions()
+        revisions = resolve_revisions(strong=strong_model)
         atomic_json(revision_path, revisions)
+    if set(revisions) != {models.SMALL,strong_model}:
+        raise ValueError('Model pair changed; use a different output directory')
     config = dict(schema=1, dataset_hash=fingerprint(dataset), model_revisions=revisions,
+                  model_roles=dict(small=models.SMALL,strong=strong_model),anonymous_model_access=True,
                   max_new_tokens=max_new_tokens, quantization=quantization, batch_size=1,
                   source_hash=source_hash(), runtime=runtime(), ic_author_commit=AUTHOR_COMMIT,
                   ic_last_k=3, ic_alpha=1.0, ic_examples=[])
     bind_manifest(root, 'inference_manifest.json', config)
-    for role, name in [('small', models.SMALL), ('strong', models.STRONG)]:
+    for role, name in [('small', models.SMALL), ('strong', strong_model)]:
         relevant = [s for s in stages if (s in {'small', 'ic'} if role == 'small' else s == 'strong')]
         missing = {s: [q for q in queries if not record_path(root, s, q).exists()] for s in relevant}
         if not any(missing.values()):
@@ -94,10 +102,11 @@ def collect(root, stages=('small', 'strong'), max_new_tokens=32, quantization='4
 def pilot_summary(root):
     root = Path(root)
     queries = read_json(root / 'queries.json')['queries']
-    summary, exported = {}, []
+    summary, exported, by_stage = {}, [], {}
     for stage in ['small', 'strong']:
         records = load_records(root, stage, queries)
-        summary[stage] = dict(n=len(records), accuracy=sum(r['correct'] for r in records)/len(records),
+        by_stage[stage] = records
+        summary[stage] = dict(model=records[0]['model'],n=len(records), accuracy=sum(r['correct'] for r in records)/len(records),
             mean_seconds=sum(r['elapsed_seconds'] for r in records)/len(records),
             total_input_tokens=sum(r['input_tokens'] for r in records),
             total_output_tokens=sum(r['output_tokens'] for r in records),
@@ -105,6 +114,13 @@ def pilot_summary(root):
         for q, record in zip(queries, records):
             exported.append(dict(query=q, stage=stage,
                                  **{k:v for k,v in record.items() if k != 'features'}))
+    pairs = [(s['correct'],t['correct']) for s,t in zip(by_stage['small'],by_stage['strong'])]
+    summary['paired'] = dict(
+        both_correct=sum(s and t for s,t in pairs),
+        both_wrong=sum(not s and not t for s,t in pairs),
+        strong_rescues=sum(not s and t for s,t in pairs),
+        strong_harms=sum(s and not t for s,t in pairs),
+        strong_minus_small_accuracy=summary['strong']['accuracy']-summary['small']['accuracy'])
     atomic_json(root / 'pilot_summary.json', summary)
     atomic_json(root / 'predictions.json', exported)
     print(summary, flush=True)

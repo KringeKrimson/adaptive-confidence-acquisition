@@ -1,4 +1,4 @@
-"""Real forward/generate integration tests on tiny random Phi-3 and Llama.
+"""Real forward/generate integration tests on tiny random Phi-3, Qwen and Llama.
 
 These verify mechanics only and must never be reported as research results.
 """
@@ -9,15 +9,18 @@ from aca.ic import project_p_yes
 from aca.models import generate_answer
 
 
-@pytest.mark.parametrize('architecture',['phi3','llama'])
+@pytest.mark.parametrize('architecture',['phi3','qwen2','llama'])
 def test_prefill_features_and_ic_projection(architecture):
-    from transformers import Phi3Config, Phi3ForCausalLM, LlamaConfig, LlamaForCausalLM
+    from transformers import (Phi3Config, Phi3ForCausalLM, LlamaConfig, LlamaForCausalLM,
+                              Qwen2Config, Qwen2ForCausalLM)
     torch.manual_seed(1)
     options=dict(vocab_size=64,hidden_size=32,intermediate_size=64,num_hidden_layers=2,
                  num_attention_heads=4,num_key_value_heads=2,max_position_embeddings=512,
                  bos_token_id=1,eos_token_id=2,pad_token_id=0)
     if architecture=='phi3':
         model=Phi3ForCausalLM(Phi3Config(**options,original_max_position_embeddings=512)).eval()
+    elif architecture=='qwen2':
+        model=Qwen2ForCausalLM(Qwen2Config(**options)).eval()
     else:
         model=LlamaForCausalLM(LlamaConfig(**options)).eval()
     inputs=torch.tensor([[1,4,5,6,7]])

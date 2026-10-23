@@ -44,7 +44,7 @@ runpy.run_path('/kaggle/working/aca-source/kaggle/runner.py', run_name='__main__
         execution = 'import os\n' + execution
     cells = [dict(id='description',cell_type='markdown',metadata={},source=[
         '# Adaptive Confidence Acquisition\n',
-        f'Source commit `{commit}`. Mode: **{mode}**. Requires GPU, Internet and HF_TOKEN secret with Llama access.\n',
+        f'Source commit `{commit}`. Mode: **{mode}**. Phi-3-mini → Qwen2.5-7B-Instruct. Requires GPU and Internet; no Hugging Face token or gated access.\n',
         'Save & Run All to retain per-query outputs. Experimental logic lives in Python modules.'])]
     for cell_id,code in [('extract',extraction),('install',installation),('run',execution)]:
         cells.append(dict(id=cell_id,cell_type='code',metadata={},execution_count=None,outputs=[],source=code.splitlines(True)))

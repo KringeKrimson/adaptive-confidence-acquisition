@@ -6,13 +6,7 @@ from aca.cli import main
 
 def run(mode='pilot', resume_from=None):
     import shutil
-    try:
-        from kaggle_secrets import UserSecretsClient
-        token = UserSecretsClient().get_secret('HF_TOKEN')
-        if token:
-            os.environ['HF_TOKEN'] = token
-    except Exception:
-        pass  # Existing HF_TOKEN also works; gated-model preflight gives the actionable error.
+    # Both official model repositories are accessed anonymously. No secret is required.
     # Model weights are disposable; keep them outside saved experiment outputs.
     os.environ.setdefault('HF_HOME','/kaggle/temp/huggingface')
     root = Path('/kaggle/working/outputs') / mode

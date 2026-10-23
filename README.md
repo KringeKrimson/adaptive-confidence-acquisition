@@ -1,7 +1,7 @@
 # Adaptive Confidence Acquisition for Cost-Aware LLM Routing
 
 COMP4901B experiment: does acquiring query-level Internal Confidence (IC) only
-near an ambiguous cheap-probe decision improve a Phi-3 → Llama cascade?
+near an ambiguous cheap-probe decision improve a Phi-3 → Qwen cascade?
 
 ## Run
 
@@ -12,14 +12,32 @@ aca collect --out outputs/pilot
 aca summary --out outputs/pilot
 ```
 
-CUDA, Internet, and a Hugging Face `HF_TOKEN` with approved access to
-`meta-llama/Llama-3.1-8B-Instruct` are required. No tokens belong in source files.
+CUDA and Internet are required. Both official model repositories are accessed
+anonymously; no Hugging Face token, approval, or notebook secret is needed.
 The pilot uses `microsoft/Phi-3-mini-4k-instruct` and
-`meta-llama/Llama-3.1-8B-Instruct`, greedy decoding, 32 maximum answer tokens,
+`Qwen/Qwen2.5-7B-Instruct`, greedy decoding, 32 maximum answer tokens,
 batch size one, and NF4 4-bit weights (FP16 compute). Both models run sequentially
 on GPU 0 to fit a 16 GB Kaggle GPU. This quantized experiment is **not** a
 reproduction of the papers' full-precision results. `--quantization none` is
 available on sufficiently large GPUs.
+
+The original Llama-3.1-8B-Instruct target was replaced **before any research
+predictions were collected**, because access was denied. Qwen2.5-7B-Instruct
+is an openly accessible Apache-2.0 model with 7.61B parameters, keeping the
+strong-model size close to the proposed 8B model
+([official model card](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct)).
+The hypothesis remains selective confidence acquisition; this experiment makes
+no claim to reproduce the paper's Phi-3/Llama cascade. "Strong" is a designated
+role, not an assumed accuracy result: report the paired pilot correctness and
+validation improvement/degradation counts before expanding.
+
+For a prespecified larger-capacity robustness experiment, use
+`aca collect --out outputs/research-qwen14b --strong-model Qwen/Qwen2.5-14B-Instruct`
+after preparing that directory's data with the same sampling/exclusions. The
+14B model is also publicly accessible and appears in the IC paper's model suite;
+it changes the cost gap and is a separate experiment, not a replacement chosen
+after inspecting test results. Model identity and revisions are stored in caches;
+switching model pairs in an existing cache is rejected.
 
 For Kaggle, after committing source:
 
@@ -31,7 +49,7 @@ kaggle kernels output sushobhanrai/adaptive-confidence-acquisition-pilot -p outp
 ```
 
 Alternatively import `outputs/kaggle-bundle/experiment.ipynb` into Kaggle.
-Enable Internet, select a GPU, and attach the `HF_TOKEN` notebook secret.
+Enable Internet and select a GPU. No notebook secrets are required.
 The generated notebook only extracts the source snapshot, installs the package,
 and calls `kaggle/runner.py`. It embeds no credentials or model weights and
 does not need GitHub credentials for the private repository. Use **Save & Run
@@ -135,5 +153,5 @@ python -m pytest -q
 Tests include exact-match evaluation, split leakage guards, numerical IC
 equivalence, incremental cost accounting, random acquisition budgets,
 configuration compatibility, and real forward/generation integration with
-tiny random Phi-3/Llama models. Tiny-model or synthetic tests are engineering
+tiny random Phi-3/Qwen/Llama models. Tiny-model or synthetic tests are engineering
 checks, **not research accuracy measurements**.

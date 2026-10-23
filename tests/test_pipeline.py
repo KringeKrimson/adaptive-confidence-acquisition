@@ -74,3 +74,5 @@ def test_interrupted_collection_resumes_completed_queries(tmp_path, monkeypatch)
     assert attempts.count('query 1')==2
     assert attempts.count('query 2')==1
     assert all(record_path(tmp_path,'small',q).exists() for q in queries)
+    with pytest.raises(ValueError,match='Model pair changed'):
+        module.collect(tmp_path,stages=['small'],strong_model=module.models.STRONG_MODELS[1])

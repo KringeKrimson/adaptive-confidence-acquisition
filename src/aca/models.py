@@ -5,7 +5,8 @@ import torch
 from .ic import aggregate_ic, ic_messages, project_p_yes, yes_no_ids
 
 SMALL = 'microsoft/Phi-3-mini-4k-instruct'
-STRONG = 'meta-llama/Llama-3.1-8B-Instruct'
+STRONG = 'Qwen/Qwen2.5-7B-Instruct'
+STRONG_MODELS = (STRONG, 'Qwen/Qwen2.5-14B-Instruct')
 
 
 def qa_messages(question):
@@ -22,13 +23,13 @@ def load_model(name, revision, quantization='4bit'):
     from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
     if not torch.cuda.is_available():
         raise RuntimeError('A CUDA GPU is required for the research run. Local tests use tiny random models only.')
-    options = dict(revision=revision, torch_dtype=torch.float16,
+    options = dict(revision=revision, token=False, torch_dtype=torch.float16,
                    device_map={'': 0}, attn_implementation='eager', trust_remote_code=False)
     if quantization == '4bit':
         options['quantization_config'] = BitsAndBytesConfig(
             load_in_4bit=True, bnb_4bit_quant_type='nf4',
             bnb_4bit_compute_dtype=torch.float16, bnb_4bit_use_double_quant=True)
-    tokenizer = AutoTokenizer.from_pretrained(name, revision=revision, trust_remote_code=False)
+    tokenizer = AutoTokenizer.from_pretrained(name, revision=revision, token=False, trust_remote_code=False)
     tokenizer.pad_token = tokenizer.eos_token
     model = AutoModelForCausalLM.from_pretrained(name, **options).eval()
     return model, tokenizer
