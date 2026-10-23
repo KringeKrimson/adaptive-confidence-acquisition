@@ -9,7 +9,8 @@ def run(mode='pilot', resume_from=None):
     # Both official model repositories are accessed anonymously. No secret is required.
     # Model weights are disposable; keep them outside saved experiment outputs.
     os.environ.setdefault('HF_HOME','/kaggle/temp/huggingface')
-    root = Path('/kaggle/working/outputs') / mode
+    output_name = 'research14b' if mode == 'viability14b' else mode
+    root = Path('/kaggle/working/outputs') / output_name
     if resume_from:
         shutil.copytree(resume_from,root,dirs_exist_ok=True)
     if mode == 'pilot':
@@ -19,14 +20,20 @@ def run(mode='pilot', resume_from=None):
         main(['prepare','--out',str(root),'--test','32'])
         main(['collect','--out',str(root),'--strong-model','Qwen/Qwen2.5-14B-Instruct',
               '--stages','small','strong','ic'])
-    elif mode == 'research':
+    elif mode in {'research','research14b','viability14b'}:
         # Reserve the deterministic pilot even when this is a fresh Kaggle session.
         pilot = root.parent / 'pilot'
         main(['prepare','--out',str(pilot),'--test','32'])
         main(['prepare','--out',str(root),'--train','1024','--validation','256','--test','512',
               '--exclude-manifest',str(pilot/'queries.json')])
-        main(['collect','--out',str(root),'--stages','small','strong','ic'])
-        main(['analyze','--out',str(root)])
+        strong = 'Qwen/Qwen2.5-14B-Instruct' if mode.endswith('14b') else 'Qwen/Qwen2.5-7B-Instruct'
+        evaluation_splits = ['validation'] if mode=='viability14b' else ['validation','test']
+        small_splits = ['train',*evaluation_splits]
+        main(['collect','--out',str(root),'--strong-model',strong,'--stages','small','--splits',*small_splits])
+        # Strong QA and IC on training examples are unused by probe/policy fitting.
+        main(['collect','--out',str(root),'--strong-model',strong,'--stages','strong','ic',
+              '--splits',*evaluation_splits])
+        main(['viability' if mode=='viability14b' else 'analyze','--out',str(root)])
     elif mode == 'diagnostic':
         from aca.storage import atomic_json
         # The inspected pilot is diagnostic data, never research train/val/test.
@@ -41,7 +48,7 @@ def run(mode='pilot', resume_from=None):
                 atomic_json(trial/'numerical_failure.json',dict(error=str(error)))
                 print(f'{precision}: {error}', flush=True)
     else:
-        raise ValueError('mode must be pilot, pilot14b, research, or diagnostic')
+        raise ValueError('Unsupported experiment mode')
 
 
 if __name__ == '__main__':

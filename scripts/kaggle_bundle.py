@@ -42,9 +42,10 @@ experiment_env = dict(os.environ, ACA_MODE={mode!r}, PYTHONUNBUFFERED='1')
 subprocess.check_call([sys.executable, '/kaggle/working/aca-source/kaggle/runner.py'], env=experiment_env)
 '''
     if resume_kernel:
+        output_name = 'research14b' if mode == 'viability14b' else mode
         execution = execution.replace('# A fresh process',
-            f"experiment_env['ACA_RESUME_FROM'] = '/kaggle/input/{resume_kernel}/outputs/{mode}'\n# A fresh process")
-    strong_label = '14B' if mode == 'pilot14b' else '7B'
+            f"experiment_env['ACA_RESUME_FROM'] = '/kaggle/input/{resume_kernel}/outputs/{output_name}'\n# A fresh process")
+    strong_label = '14B' if mode.endswith('14b') else '7B'
     cells = [dict(id='description',cell_type='markdown',metadata={},source=[
         '# Adaptive Confidence Acquisition\n',
         f'Source commit `{commit}`. Mode: **{mode}**. Phi-3-mini → Qwen2.5-{strong_label}-Instruct. Requires GPU and Internet; no Hugging Face token or gated access.\n',
@@ -67,7 +68,7 @@ subprocess.check_call([sys.executable, '/kaggle/working/aca-source/kaggle/runner
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--owner',default='sushobhanrai')
-    parser.add_argument('--mode',choices=['pilot','pilot14b','research','diagnostic'],default='pilot')
+    parser.add_argument('--mode',choices=['pilot','pilot14b','research','research14b','viability14b','diagnostic'],default='pilot')
     parser.add_argument('--out',default='outputs/kaggle-bundle')
     parser.add_argument('--resume-kernel')
     args = parser.parse_args()

@@ -16,6 +16,7 @@ def main(argv=None):
     p = sub.add_parser('collect')
     p.add_argument('--out',required=True)
     p.add_argument('--stages',nargs='+',choices=['small','strong','ic'],default=['small','strong'])
+    p.add_argument('--splits',nargs='+',choices=['train','validation','test'],default=['train','validation','test'])
     p.add_argument('--max-new-tokens',type=int,default=32)
     p.add_argument('--quantization',choices=['4bit','4bit-fp32','none'],default='4bit-fp32')
     p.add_argument('--strong-model',choices=['Qwen/Qwen2.5-7B-Instruct','Qwen/Qwen2.5-14B-Instruct'],
@@ -24,6 +25,8 @@ def main(argv=None):
     p.add_argument('--out',required=True)
     p.add_argument('--random-seeds',type=int,default=20)
     p = sub.add_parser('summary')
+    p.add_argument('--out',required=True)
+    p = sub.add_parser('viability')
     p.add_argument('--out',required=True)
     args = parser.parse_args(argv)
     options = vars(args).copy()
@@ -39,6 +42,9 @@ def main(argv=None):
         from .analysis import analyze
         report = analyze(root,**options)
         print(json.dumps(report['results'],indent=2))
+    elif command == 'viability':
+        from .analysis import viability
+        print(json.dumps(viability(root),indent=2))
     else:
         from .collect import pilot_summary
         pilot_summary(root)

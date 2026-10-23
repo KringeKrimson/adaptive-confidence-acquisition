@@ -39,10 +39,16 @@ def resolve_revisions(small=models.SMALL, strong=models.STRONG):
     return revisions
 
 
-def collect(root, stages=('small', 'strong'), max_new_tokens=32, quantization='4bit-fp32', strong_model=models.STRONG):
+def collect(root, stages=('small', 'strong'), max_new_tokens=32, quantization='4bit-fp32',
+            strong_model=models.STRONG, splits=('train', 'validation', 'test')):
     root = Path(root)
     dataset = read_json(root / 'queries.json')
-    queries = dataset['queries']
+    if not splits or not set(splits) <= {'train', 'validation', 'test'}:
+        raise ValueError('Select valid nonempty collection splits')
+    all_queries = dataset['queries']
+    queries = [q for q in all_queries if q['split'] in splits]
+    if not queries:
+        raise ValueError('No queries in selected collection splits')
     if strong_model not in models.STRONG_MODELS:
         raise ValueError('Use a supported public Qwen strong model')
     if not torch.cuda.is_available():
@@ -95,7 +101,9 @@ def collect(root, stages=('small', 'strong'), max_new_tokens=32, quantization='4
         finally:
             del model
             models.release_model(None)
-    if all(s in stages for s in ('small', 'strong')):
+    # Split selection schedules work; it does not change any per-query computation.
+    # A later call can therefore extend this same immutable cache to held-out test.
+    if all(record_path(root, s, q).exists() for s in ('small', 'strong') for q in all_queries):
         pilot_summary(root)
 
 

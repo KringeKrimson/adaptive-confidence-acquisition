@@ -26,6 +26,57 @@ def confidence_metrics(y, p):
                 brier=float(brier_score_loss(y, p)), log_loss=float(log_loss(y, p, labels=[0,1])))
 
 
+def select_probe(x, y, splits):
+    splits = np.asarray(splits)
+    if set(splits) != {'train', 'validation'}:
+        raise ValueError('Probe selection requires only train and validation data')
+    train, val = splits == 'train', splits == 'validation'
+    candidates = []
+    for c in [.01, .1, 1.0, 10.0]:
+        probe = fit_probe(x[train], y[train], splits[train], c)
+        loss = log_loss(y[val], probe.predict_proba(x[val])[:,1], labels=[0,1])
+        candidates.append((float(loss), c, probe))
+    _, c, probe = min(candidates, key=lambda p: (p[0], p[1]))
+    return c, probe, [dict(loss=loss,C=c0) for loss,c0,_ in candidates]
+
+
+def viability(root):
+    """Development readout: no test predictions read, no hypothesis conclusion."""
+    root = Path(root)
+    queries = read_json(root/'queries.json')['queries']
+    validate_splits(queries)
+    development = [q for q in queries if q['split'] != 'test']
+    validation = [q for q in development if q['split'] == 'validation']
+    small = load_records(root,'small',development)
+    strong, ic = [load_records(root,s,validation) for s in ['strong','ic']]
+    config_hash = fingerprint(read_json(root/'inference_manifest.json'))
+    if any(r['config_hash'] != config_hash for rows in [small,strong,ic] for r in rows):
+        raise ValueError('Mixed inference configurations in cache')
+    split = np.array([q['split'] for q in development])
+    y = np.array([r['correct'] for r in small])
+    start = time.perf_counter()
+    c, probe, losses = select_probe(np.array([r['features'] for r in small]),y,split)
+    elapsed = time.perf_counter()-start
+    val_small = [r for q,r in zip(development,small) if q['split']=='validation']
+    sy = y[split=='validation']
+    ty = np.array([r['correct'] for r in strong])
+    cheap = probe.predict_proba(np.array([r['features'] for r in val_small]))[:,1]
+    report = dict(scope='Development viability only. Probe C selected on this validation set; metrics are not held-out hypothesis evidence.',
+        n_train=int(sum(split=='train')),n_validation=len(validation),test_predictions_read=0,
+        model_roles=read_json(root/'inference_manifest.json').get('model_roles'),
+        small_accuracy=float(sy.mean()),strong_accuracy=float(ty.mean()),
+        rescues=int(sum((sy==0)&(ty==1))),harms=int(sum((sy==1)&(ty==0))),
+        oracle_accuracy=float(np.maximum(sy,ty).mean()),
+        mean_seconds={s:float(np.mean([r['elapsed_seconds'] for r in rows]))
+                      for s,rows in [('small',val_small),('strong',strong),('ic',ic)]},
+        confidence=dict(cheap=confidence_metrics(sy,cheap),ic=confidence_metrics(sy,[r['ic'] for r in ic])),
+        probe_C=c,validation_losses=losses,training_seconds=elapsed,
+        train_ids=[q['id'] for q in development if q['split']=='train'],
+        validation_ids=[q['id'] for q in validation])
+    atomic_json(root/'viability.json',report)
+    return report
+
+
 def bootstrap_delta(a, b, seed=4901, repeats=1000):
     rng = np.random.default_rng(seed)
     delta = a-b
@@ -42,7 +93,9 @@ def analyze(root, penalties=(0., .025, .05, .1, .2, .4, .8, 1.6), random_seeds=2
     split = np.array([q['split'] for q in queries])
     if any(not np.any(split == part) for part in ['train','validation','test']):
         raise ValueError('Analysis requires separate nonempty train, validation, test sets')
-    small, strong, ic = [load_records(root, s, queries) for s in ['small','strong','ic']]
+    small = load_records(root, 'small', queries)
+    evaluation = [q for q in queries if q['split'] != 'train']
+    strong, ic = [load_records(root, s, evaluation) for s in ['strong','ic']]
     manifest_hash = fingerprint(read_json(root/'inference_manifest.json'))
     if any(r['config_hash'] != manifest_hash for stage in [small,strong,ic] for r in stage):
         raise ValueError('Mixed inference configurations in cache')
@@ -50,12 +103,7 @@ def analyze(root, penalties=(0., .025, .05, .1, .2, .4, .8, 1.6), random_seeds=2
     y = np.array([r['correct'] for r in small])
     train, val, test = [split == s for s in ['train','validation','test']]
     start = time.perf_counter()
-    candidates = []
-    for c in [.01, .1, 1.0, 10.0]:
-        probe = fit_probe(x[train], y[train], split[train], c)
-        loss = log_loss(y[val], probe.predict_proba(x[val])[:,1], labels=[0,1])
-        candidates.append((float(loss), c, probe))
-    _, c, probe = min(candidates, key=lambda p: (p[0], p[1]))
+    c, probe, losses = select_probe(x[~test], y[~test], split[~test])
     training_seconds = time.perf_counter()-start
     probabilities, scoring_times = [], []
     # Batch one CPU timing, matching the decision service. Includes feature scaling.
@@ -64,17 +112,17 @@ def analyze(root, penalties=(0., .025, .05, .1, .2, .4, .8, 1.6), random_seeds=2
         start = time.perf_counter()
         probabilities.append(float(probe.predict_proba(feature[None,:])[0,1]))
         scoring_times.append(time.perf_counter()-start)
-    d = dict(ids=np.array([q['id'] for q in queries]), splits=split, cheap=np.array(probabilities),
-             ic=np.array([r['ic'] for r in ic]), small_correct=y,
+    d = dict(ids=np.array([q['id'] for q in evaluation]), splits=split[~train], cheap=np.array(probabilities)[~train],
+             ic=np.array([r['ic'] for r in ic]), small_correct=y[~train],
              strong_correct=np.array([r['correct'] for r in strong]),
-             small_seconds=np.array([r['elapsed_seconds'] for r in small]),
+             small_seconds=np.array([r['elapsed_seconds'] for r in small])[~train],
              strong_seconds=np.array([r['elapsed_seconds'] for r in strong]),
-             ic_seconds=np.array([r['elapsed_seconds'] for r in ic]), probe_seconds=np.array(scoring_times))
-    v, t = [{k:a[mask] for k,a in d.items()} for mask in [val,test]]
+             ic_seconds=np.array([r['elapsed_seconds'] for r in ic]), probe_seconds=np.array(scoring_times)[~train])
+    v, t = [{k:a[mask] for k,a in d.items()} for mask in [d['splits']=='validation',d['splits']=='test']]
     selected = tune_policies(v, penalties)
     atomic_json(root/'selected_policies.json', dict(selection_split='validation', policies=selected,
-        probe_C=c, validation_losses=[dict(loss=l,C=c0) for l,c0,_ in candidates],
-        train_ids=d['ids'][train].tolist(), validation_ids=v['ids'].tolist()))
+        probe_C=c, validation_losses=losses,
+        train_ids=[q['id'] for q in queries if q['split']=='train'], validation_ids=v['ids'].tolist()))
     # Portable probe weights; avoid loading pickle from experiment archives.
     scaler, classifier = probe.steps[0][1], probe.steps[1][1]
     atomic_json(root/'probe.json', dict(C=c, mean=scaler.mean_.tolist(), scale=scaler.scale_.tolist(),
@@ -133,9 +181,9 @@ def analyze(root, penalties=(0., .025, .05, .1, .2, .4, .8, 1.6), random_seeds=2
                   for qid,p,i,s,a,sec,rc in zip(t['ids'],t['cheap'],t['ic'],at['strong'],at['acquire'],
                                                at['seconds'],random_mean['correct'])]))
     report = dict(results=results, comparisons=details,
-        confidence={part:dict(cheap=confidence_metrics(y[mask],d['cheap'][mask]),
-                              ic=confidence_metrics(y[mask],d['ic'][mask]))
-                    for part,mask in [('validation',val),('test',test)]},
+        confidence={part:dict(cheap=confidence_metrics(d['small_correct'][mask],d['cheap'][mask]),
+                              ic=confidence_metrics(d['small_correct'][mask],d['ic'][mask]))
+                    for part,mask in [('validation',d['splits']=='validation'),('test',d['splits']=='test')]},
         cost_definition='Warm batch-one additive replay service seconds; includes QA, probe, acquired IC and routed strong QA. Model loads, warmups, training and offline cache collection are separate.',
         random_control='Offline timing-oracle random prefix with fractional boundary query: equal expected measured IC seconds, not equal total routing cost.',
         n_train=int(train.sum()),n_validation=int(val.sum()),n_test=int(test.sum()))

@@ -70,7 +70,8 @@ After inspecting the pilot's predictions/truncation rate:
 
 ```sh
 aca prepare --out outputs/research --train 1024 --validation 256 --test 512 --exclude-manifest outputs/pilot/queries.json
-aca collect --out outputs/research --stages small strong ic
+aca collect --out outputs/research --stages small --splits train validation test
+aca collect --out outputs/research --stages strong ic --splits validation test
 aca analyze --out outputs/research
 ```
 
@@ -186,3 +187,46 @@ option `--quantization 4bit`. This pilot is too small for model-quality conclusi
 but does not establish the intended strong-model advantage. The next reserved-pilot
 check uses the prespecified Qwen-14B alternative (`--mode pilot14b`); no research
 thresholds or probes have yet been trained on real model outputs.
+
+
+The larger-model diagnostic [version 361463736](https://www.kaggle.com/code/sushobhanrai/adaptive-confidence-acquisition-pilot?scriptVersionId=361463736)
+completed in 584.4 seconds at commit `e62e630`, using the identical reserved cohort.
+All 64 QA labels, 32 feature vectors and 32 IC matrices were downloaded and checked.
+
+| Stable NF4 FP32 pilot | Exact match | Warm mean seconds/query | Token-limit hits |
+| --- | ---: | ---: | ---: |
+| Phi-3 (14B-pair run) | 16/32 (50.0%) | 0.613 | 0 |
+| Qwen-7B (previous run) | 14/32 (43.8%) | 0.875 | 0 |
+| Qwen-14B | 15/32 (46.9%) | 1.894 | 0 |
+
+Qwen-14B rescues five Phi errors and introduces six; a correctness-oracle router
+would reach 21/32, an unattainable diagnostic upper bound. Mean IC cost in this
+run was 0.351 s/query. These are single-pass warm timings, not repeated latency
+benchmarks. Neither candidate yet demonstrates the intended aggregate accuracy
+advantage. All these questions are reserved diagnostics, not research test data.
+The next methodological checkpoint is whether to assess Qwen-14B on development
+data before proceeding to the held-out hypothesis experiment.
+
+A concrete development-only runner is ready:
+
+```sh
+python scripts/kaggle_bundle.py --mode viability14b --out outputs/kaggle-viability-bundle
+```
+
+It reserves the pilot, prepares the 1024/256/512 manifest in `outputs/research14b`,
+collects small QA/features on train+validation and strong QA/IC on validation,
+and writes `viability.json`. It performs no test inference and reads no test
+predictions. Its probe C is selected on that validation set, so the reported
+validation confidence metrics are development diagnostics, not held-out evidence.
+The `research14b` mode can subsequently extend the same cache to test and run
+all baseline comparisons; attach the saved development output when resuming.
+Both research runners skip strong QA and IC on training examples because those
+calls are mathematically unused. The ordinary small-model training features and
+correctness labels remain necessary. `collect --splits ...` schedules subsets
+without changing the per-query inference configuration or overwriting results.
+The equivalent local development readout is `aca viability --out OUTPUT_DIRECTORY`.
+
+**Executed:** paired GPU pilots and IC diagnostics. **Implemented but not yet
+executed on real research data:** probe training, validation viability, adaptive
+policy selection and held-out baseline/accuracy–cost comparisons. Synthetic
+end-to-end checks cover those code paths; they are not research evidence.

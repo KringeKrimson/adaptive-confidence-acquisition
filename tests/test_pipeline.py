@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from aca.analysis import analyze, fit_probe
+from aca.analysis import analyze, fit_probe, viability
 from aca.storage import atomic_json, fingerprint, read_json, record_path
 
 
@@ -25,12 +25,22 @@ def test_cached_end_to_end_analysis(tmp_path):
         i=int(q['id'][-1])
         common=dict(id=q['id'],split=q['split'],query_hash=fingerprint(q),config_hash=fingerprint(manifest))
         for stage in ['small','strong','ic']:
+            if q['split']=='train' and stage!='small':
+                continue  # Research analysis must not require unused training calls.
             r=dict(common,elapsed_seconds={'small':.1,'strong':.5,'ic':.04}[stage])
             if stage=='ic':
                 r['ic']=.8 if i%2 else .2
             else:
                 r.update(correct=i%2 if stage=='small' else int(i!=7),features=[float(i%2),float(i)])
             atomic_json(record_path(tmp_path,stage,q),r)
+    test_record=record_path(tmp_path,'small',queries[-1])
+    original=test_record.read_bytes()
+    test_record.unlink()
+    development=viability(tmp_path)
+    assert development['test_predictions_read']==0
+    assert development['n_train']==8 and development['n_validation']==8
+    assert development['rescues']==4 and development['harms']==1
+    test_record.write_bytes(original)
     report=analyze(tmp_path,penalties=[0.,.5],random_seeds=2)
     assert report['n_train']==8 and report['n_test']==8
     assert len(report['results'])==10
@@ -76,3 +86,14 @@ def test_interrupted_collection_resumes_completed_queries(tmp_path, monkeypatch)
     assert all(record_path(tmp_path,'small',q).exists() for q in queries)
     with pytest.raises(ValueError,match='Model pair changed'):
         module.collect(tmp_path,stages=['small'],strong_model=module.models.STRONG_MODELS[1])
+    # A split-limited collection can later extend its cache to the test set.
+    subset=tmp_path/'subset'
+    partitioned=[dict(q,split=s) for q,s in zip(queries,['train','validation','test'])]
+    atomic_json(subset/'queries.json',dict(queries=partitioned))
+    atomic_json(subset/'model_revisions.json',read_json(tmp_path/'model_revisions.json'))
+    module.collect(subset,stages=['small'],splits=['train','validation'])
+    first=record_path(subset,'small',partitioned[0]).read_bytes()
+    assert not record_path(subset,'small',partitioned[2]).exists()
+    module.collect(subset,stages=['small'],splits=['test'])
+    assert record_path(subset,'small',partitioned[0]).read_bytes()==first
+    assert record_path(subset,'small',partitioned[2]).exists()
