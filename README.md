@@ -2,9 +2,13 @@
 
 COMP4901B experiment: does acquiring query-level Internal Confidence (IC) only
 near an ambiguous cheap-probe decision improve a small-to-strong cascade?
-The current prospective pair is Qwen2.5-1.5B → Qwen2.5-14B. It passed the frozen
-development screen; adaptive IC's benefit is not yet established. Historical
-Phi/Qwen pilots and the unchanged failed Phi→Qwen-14B screen are retained below.
+The completed Qwen2.5-1.5B → Qwen2.5-14B confirmatory experiment found no
+precommitted practically meaningful adaptive-IC advantage. The separate post-test
+model-preselection analysis is exploratory. See the concise
+[group-review research summary](RESEARCH_SUMMARY.md) for results, limitations and
+report-ready figures. Historical pilots, the failed Phi→Qwen-14B screen and
+execution instructions are retained below for reproducibility; no further GPU
+experiments or model-pair searches are planned.
 
 ## Run
 
