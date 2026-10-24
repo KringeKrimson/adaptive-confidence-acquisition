@@ -556,3 +556,71 @@ and regenerate the plot from the extracted cache, run
 The audit is [`qwen15_confirmatory_audit.json`](results/qwen15_confirmatory_audit.json).
 Any future method changes require a new prospective evaluation; this test is now
 consumed and must not become tuning data for another confirmatory claim.
+
+## Additional offline exploration: select one model before inference
+
+**Exploratory, after inspecting test results; not an amendment to the frozen test.**
+No new model calls, fitting or policy tuning were performed. For a query-independent
+strong-model probability `p`, selecting exactly one model before generation gives
+`accuracy(p) = .265625 + .3515625*p` and
+`seconds(p) = .3335872234 + 1.5319042097*p`, for `0 <= p <= 1`.
+The strong branch pays no small-model, probe or IC cost. This is the expected
+curve from the original 512 cached prediction/cost pairs, not a live benchmark.
+For each old point, `p` matches its mean cost using costs alone, or is capped at
+strong-only when that endpoint is already cheaper. No accuracy labels select `p`.
+
+| Original policy | Original → preselection s/query | Original EM | Preselection expected EM | Gain, points [pointwise paired 95%] |
+| --- | ---: | ---: | ---: | ---: |
+| Adaptive IC, point 5 | .7732 → .7732 | 33.59% | 36.65% | +3.06 [1.00, 5.30] |
+| Cheap-route mixture, point 5 | .7732 → .7732 | 34.93% | 36.65% | +1.72 [1.33, 2.17] |
+| Random IC, point 5 | .8898 → .8898 | 35.65% | 39.33% | +3.68 [2.51, 4.84] |
+| Adaptive IC, points 0–4 | 2.1161 → 1.8655 | 60.55% | 61.72% | +1.17 [.39, 2.15] |
+| Cheap-only, points 0–4 | 2.1490 → 1.8655 | 61.13% | 61.72% | +.59 [0, 1.37] |
+
+All **40 non-endpoint** previously evaluated policy/control points are dominated
+in observed expected accuracy and cost, including always-IC and the no-IC
+probe-charging points. Both former intermediate frontier points lose that status
+when this candidate family is included. Among these compared families, the new
+observed frontier is the entire small-only/strong-only preselection line segment.
+The old finite-candidate frontier remains recorded unchanged above and in its
+original JSON; this broader frontier was discovered retrospectively.
+
+The 10,000 paired query resamples (seed 4903) recompute the new cost-matching
+probability and original cheap-control mixture weight from resampled costs.
+Random-IC intervals condition on its saved 20-seed expected schedules. These are
+**pointwise exploratory** intervals, without multiplicity correction; the observed
+dominance of all 40 points is not a claim of simultaneous statistical dominance.
+Coin flips are integrated analytically: intervals describe expected performance,
+not the variation of one realized randomized schedule. Curve and cost intervals,
+all 42 comparisons and input-preservation hashes are in
+[`qwen15_exploratory_mixture.json`](results/qwen15_exploratory_mixture.json).
+
+![Exploratory accuracy–cost comparison](results/qwen15_exploratory_mixture.png)
+
+The scientific distinction is between predicting **small-model correctness**
+and predicting **incremental escalation benefit per unit cost**. The frozen probe
+has final-test correctness AUROC .757, but low confidence predicts strong-model
+rescue among the 376 small errors with AUROC only .392 (IC: .440). The strong
+model rescues 187 errors and introduces 7, so capacity exists; low confidence often
+targets questions that remain hard for the strong model. Point 5's 100 escalations
+yield .360 net additional correct answers per escalation versus .352 for a
+query-independent strong choice, while selected strong calls average 2.080 s
+versus 1.865 s overall. This modest targeting benefit does not pay for always
+running the small model and acquiring IC. These are diagnostic associations,
+not a causal decomposition. Effective cost-aware routing needs to predict
+`E[strong_correct - small_correct | query information]` relative to incremental
+cost; a correctness probe does not directly learn that quantity.
+
+For the final report, retain the prospective negative adaptive-versus-cheap
+finding, and identify this stronger baseline/expanded frontier as a separate
+post-test discovery. Limit conclusions to this quantized model pair, TriviaQA,
+prompt, IC transfer and fixed policies. Cached warm component timings exclude
+unmeasured dispatch/RNG, residency, loading and queue/communication overhead;
+tiny dominance margins near small-only should not be overinterpreted. A live
+randomized run and new methods would require fresh prospective evaluation.
+
+Reproduce offline with
+`python -m aca.exploratory_mixture --cache outputs/kaggle-confirmatory-v7/outputs/confirmatory --out outputs/exploratory_model_mixture`.
+The separate output directory also saves per-query expected accuracy/cost for
+every comparison. All 1574 original cache/frozen input files passed before/after
+SHA256 preservation checks; the frozen confirmatory results were not rewritten.
