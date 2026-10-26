@@ -39,4 +39,6 @@ ax.set(xlabel='Small / strong QA service cost (s/t)',ylabel='Selected / global m
 ax.legend(loc='upper left',frameon=False,fontsize=9)
 for ext in ['png','pdf']:fig.savefig(out/f'cascade_break_even.{ext}',dpi=300)
 plt.close(fig)
-print('Wrote four figure pairs; original numerical results unchanged')
+from aca.benefit_analysis import plot as plot_benefit
+plot_benefit(read_json(repo/'results/benefit_development.json'),out)
+print('Wrote five figure pairs; original numerical results unchanged')

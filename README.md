@@ -1,5 +1,12 @@
 # Adaptive Confidence Acquisition for Cost-Aware LLM Routing
 
+Completed research deliverables: [technical report](deliverables/REPORT.md),
+[editable presentation](deliverables/COMP4901B_research.pptx), and
+[reproduction guide](deliverables/REPRODUCIBILITY.md). The original confirmatory
+result remains negative. The final benefit-aware extension completed its fixed
+development screen and returned **STOP**; the reserved fresh test remains unused.
+No further GPU experiments are planned. The historical records below are retained.
+
 COMP4901B experiment: does acquiring query-level Internal Confidence (IC) only
 near an ambiguous cheap-probe decision improve a small-to-strong cascade?
 The completed Qwen2.5-1.5B → Qwen2.5-14B confirmatory experiment found no
