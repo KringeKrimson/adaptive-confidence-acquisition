@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import subprocess
 import zipfile
+import numpy as np
 
 
 def build(destination):
@@ -20,9 +21,19 @@ def build(destination):
                 z.writestr(name,subprocess.check_output(['git','show',f'HEAD:{name}'],cwd=repo))
         z.writestr('benefit_inputs/fresh_queries.json',(repo/'outputs/benefit_inputs/fresh_test/queries.json').read_bytes())
         cached=repo/'outputs/kaggle-qwen15-v6/outputs/qwen15screen'
+        feature_names=[];features=[]
         for p in cached.rglob('*'):
             if p.is_file() and (p.relative_to(cached).parts[0] in ['small','strong','ic','overhead'] or p.name in ['queries.json','inference_manifest.json','model_revisions.json']):
-                z.write(p,'seed-cache/qwen15screen/'+str(p.relative_to(cached)))
+                name='seed-cache/qwen15screen/'+str(p.relative_to(cached))
+                if p.parent.name=='small':
+                    record=json.loads(p.read_text());feature_names.append(p.name);features.append(record.pop('features'))
+                    z.writestr(name,json.dumps(record))
+                else:z.write(p,name)
+        array=np.asarray(features,dtype=np.float64)
+        assert np.array_equal(array,array.astype(np.float32).astype(np.float64))
+        feature_buffer=io.BytesIO();np.savez_compressed(feature_buffer,features=array.astype(np.float32))
+        z.writestr('seed-cache/features.npz',feature_buffer.getvalue())
+        z.writestr('seed-cache/feature_names.json',json.dumps(feature_names))
     data=buffer.getvalue();sha=hashlib.sha256(data).hexdigest()
     commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=repo,text=True).strip()
     extract=f'''import base64,hashlib,io,zipfile,pathlib

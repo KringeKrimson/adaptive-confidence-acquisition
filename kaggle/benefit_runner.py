@@ -19,6 +19,16 @@ def run():
     bind_manifest(base,'reservation.json',reservation)
     bind_manifest(base/'reserved_fresh_test','queries.json',fresh)
     print('FRESH TEST RESERVED; NO TEST INFERENCE:',fingerprint(fresh['queries']),flush=True)
+    # Restore losslessly compressed float32 features using explicit filename order.
+    compressed=source/'seed-cache/features.npz'
+    if compressed.exists():
+        import numpy as np
+        values=np.load(compressed)['features']
+        names=read_json(source/'seed-cache/feature_names.json')
+        assert len(names)==len(values)==1280
+        for name,value in zip(names,values):
+            p=source/'seed-cache/qwen15screen/small'/name
+            record=read_json(p);record['features']=value.astype(float).tolist();atomic_json(p,record)
     paths=[p for p in Path('/kaggle/input').rglob('queries.json') if p.parent.name in {'qwen15screen','development'}]
     paths += list((source/'seed-cache').rglob('queries.json'))
     candidates=[]
