@@ -46,7 +46,7 @@ def run():
         if len(q)==1280 and sum(r['split']=='train' for r in q)==1024:
             candidates.append(p.parent)
     if not candidates:raise ValueError('Attach the saved Qwen development output version361511726, not the original final-test version')
-    previous=max(candidates,key=lambda p:len(list((p/'strong').glob('*.json'))))
+    previous=max(candidates,key=lambda p:(len(list((p/'strong').glob('*.json'))),p.is_relative_to(source)))
     root=base/'development';root.mkdir(parents=True,exist_ok=True)
     for name in ['queries.json','inference_manifest.json','model_revisions.json','small','strong','ic','overhead']:
         item=previous/name
@@ -56,6 +56,14 @@ def run():
             if not p.is_file():continue
             target=root/p.relative_to(previous)
             if not target.exists():target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(p,target)
+    # An expanded data input can contain stripped records. Repair from the
+    # explicitly aligned lossless array, including when resuming an older run.
+    if compressed.exists():
+        for name,value in zip(names,values):
+            p=root/'small'/name;record=read_json(p)
+            if 'features' not in record:
+                record['features']=value.astype(float).tolist();atomic_json(p,record)
+            else:assert np.array_equal(np.asarray(record['features']),value.astype(float))
     queries=read_json(root/'queries.json')['queries'];old=read_json(source/'results/qwen15_methods.json')
     assert {q['id'] for q in queries}==set(old['probe']['training_ids']+old['selection_ids']+old['assessment_ids_excluded_from_selection'])
     assert not {q['id'] for q in queries}&{q['id'] for q in fresh['queries']}
