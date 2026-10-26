@@ -40,12 +40,12 @@ def analyze(root,analysis,out,original_methods):
             rescues=int(np.sum((ss==0)&(tt==1))),harms=int(np.sum((ss==1)&(tt==0))),
             small_service_seconds=float(sum(r['small_seconds'] for r in selected)),
             strong_service_seconds=float(sum(r['strong_seconds'] for r in selected)))
-    details=[];lines=['| Method | λ | Cal. gain, pp | Assessment EM (%) | s/query | Strong (%) | Gain vs random, pp | Familywise 95%, pp | Gate pass |',
-                      '|---|---:|---:|---:|---:|---:|---:|---|---|']
+    details=[];lines=['| Method | λ | Cal. gain, pp | Assessment EM (%) | s/query | Strong (%) | Exact cost match | Gain vs random, pp | Familywise 95%, pp | Gate pass |',
+                      '|---|---:|---:|---:|---:|---:|---|---:|---|---|']
     for i,p in enumerate(report['points']):
         a=p['assessment'];m=a['random_preselection'];lo,hi=np.array(a['familywise_95'])*100
         details.append(dict(id=f'{p["kind"]}:{p["penalty"]}',**p))
-        lines.append(f'| {p["kind"]} | {p["penalty"]:g} | {100*p["calibration"]["random_preselection"]["gain"]:+.2f} | {100*a["accuracy"]:.2f} | {a["mean_seconds"]:.4f} | {100*a["strong_rate"]:.2f} | {100*m["gain"]:+.2f} | [{lo:+.2f}, {hi:+.2f}] | {p["passed"]} |')
+        lines.append(f'| {p["kind"]} | {p["penalty"]:g} | {100*p["calibration"]["random_preselection"]["gain"]:+.3f} | {100*a["accuracy"]:.2f} | {a["mean_seconds"]:.4f} | {100*a["strong_rate"]:.2f} | {"Yes" if m["exact_cost_match"] else "No; endpoint"} | {100*m["gain"]:+.3f} | [{lo:+.3f}, {hi:+.3f}] | {p["passed"]} |')
     (out/'development_table.md').write_text('\n'.join(lines)+'\n')
     result=dict(scope='Descriptive development diagnostics; no new confirmatory inference or tuning',
         status=report['status'],protocol_hash=report['protocol_hash'],methods_hash=report['methods_hash'],
@@ -109,7 +109,8 @@ def plot(report,out):
         ax.plot([lo,hi],[i,i],color=color,lw=1.2);ax.plot(gain,i,styles[p['kind']][1],color=color,ms=4)
     ax.axvline(0,color='#555555',lw=1);ax.axvline(3,color='#398455',lw=1,ls='--')
     ax.set(yticks=np.arange(16),yticklabels=[f'{p["kind"]}, λ={p["penalty"]:g}' for p in report['points']],
-        xlabel='Benefit method minus cost-matched random EM (pp)',title='Paired familywise 95% intervals; 16 comparisons')
+        xlabel='Benefit method minus random / clipped endpoint EM (pp)',
+        title='Paired familywise 95% intervals; 16 comparisons\nGray: unmatched endpoint; dashed: +3 pp threshold')
     ax.invert_yaxis();ax.tick_params(axis='y',labelsize=8)
     fig.suptitle('DEVELOPMENT ONLY — bounded benefit-aware extension',fontsize=13)
     for ext in ['png','pdf']:fig.savefig(Path(out)/f'benefit_development.{ext}',dpi=300)

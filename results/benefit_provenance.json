@@ -1,0 +1,62 @@
+{
+  "stage": "Final bounded extension; development STOP, no fresh confirmation",
+  "archive": "outputs/benefit-results(1).zip",
+  "archive_sha256": "9488d43cd27cab50e19b860ca38eaf7d1f75924d3cafa44f96c8d042ea1c6228",
+  "kaggle_notebook": "https://www.kaggle.com/code/sushobhanrai/notebookd29cb52061",
+  "session": "Live draft; outputs downloaded and CRC verified before stopping GPU",
+  "source_commit": "8506d5a883c1824acdd35356e99688089183e08c",
+  "protocol_commit": "5f2149b8156bc06a85866a5865c986b16703e92d",
+  "protocol_hash": "2423dadc1817a260d558f8d7cd2cf6fbda03a1bd61652b8c6d6945e20496d127",
+  "methods_hash": "4673bc4c00fb54404ebe27bca909984dee35c4e23d27dd01dcb60cb15f560be9",
+  "record_counts": {
+    "small": 1280,
+    "strong": 1280,
+    "ic": 256
+  },
+  "token_cap_hits": {
+    "small": 0,
+    "strong": 7,
+    "ic": 0
+  },
+  "reused_records_verified_equal": {
+    "small": 1280,
+    "strong": 256,
+    "ic": 256
+  },
+  "new_strong_training_calls": 1024,
+  "new_small_calls": 0,
+  "new_ic_calls": 0,
+  "new_test_calls": 0,
+  "new_strong_training_warm_seconds": 1717.4178467130005,
+  "new_overhead": [
+    {
+      "file": "strong-1793032474327379584.json",
+      "model": "Qwen/Qwen2.5-14B-Instruct",
+      "load_seconds": 308.567015354,
+      "qa_warmup": 2.022519091999925,
+      "ic_warmup": 0
+    },
+    {
+      "file": "strong-memory-1793034196409332838.json",
+      "model": "Qwen/Qwen2.5-14B-Instruct",
+      "model_footprint_bytes": 12837945600,
+      "total_bytes": 15636037632,
+      "visible_gpus": 2,
+      "device": "cuda:0",
+      "peak_allocated_bytes": 13469373952,
+      "peak_reserved_bytes": 13606322176
+    }
+  ],
+  "checked": [
+    "archive CRC and safe paths",
+    "model manifests and query hashes",
+    "exact match and F1 recomputation",
+    "finite1536d features and lossless old-cache equality",
+    "portable prediction restoration",
+    "all16 saved decisions and cost/gain recomputation",
+    "10000 paired bootstrap intervals recomputed",
+    "reserved512 query hash unchanged; no new test predictions"
+  ],
+  "recovery": "First CPU analysis hit a missing-features input-packaging error after all1024 training calls completed. Restored exact float32 arrays from aligned seed-cache/features.npz; reran CPU analysis only. Stale run_failure.json retained as provenance; analysis/development.json is final.",
+  "fresh_test_predictions": 0
+}

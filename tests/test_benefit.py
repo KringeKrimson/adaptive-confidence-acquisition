@@ -45,3 +45,14 @@ def test_routing_uses_appropriate_predicted_incremental_cost():
     predicted=np.array([[.5,.4,1.]])
     assert route_predictions('preselection',.6,0,predicted,1)[0]
     assert not route_predictions('cascade',.6,0,predicted,1)[0]
+
+
+def test_frontier_retains_targeting_advantage_and_clips_over_budget():
+    from aca.benefit_analysis import finite_frontier
+    report=dict(random_preselection_curve=[dict(accuracy=.5,mean_seconds=.5),
+        dict(accuracy=1.,mean_seconds=2.)],baselines=[],points=[
+        dict(kind='preselection',penalty=.1,assessment=dict(accuracy=.65,mean_seconds=.75)),
+        dict(kind='cascade',penalty=.1,assessment=dict(accuracy=.99,mean_seconds=3.))])
+    frontier=finite_frontier(report)
+    assert [p['id'] for p in frontier['fixed_points_not_dominated_by_line_or_other_points']]==['preselection:0.1']
+    assert frontier['fixed_points_dominated_by_random_preselection']==['cascade:0.1']
