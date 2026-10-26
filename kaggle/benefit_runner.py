@@ -19,6 +19,15 @@ def run():
     bind_manifest(base,'reservation.json',reservation)
     bind_manifest(base/'reserved_fresh_test','queries.json',fresh)
     print('FRESH TEST RESERVED; NO TEST INFERENCE:',fingerprint(fresh['queries']),flush=True)
+    import zipfile
+    for archive in Path('/kaggle/input').rglob('seed-cache.zip'):
+        with zipfile.ZipFile(archive) as z:
+            assert all(not Path(n).is_absolute() and '..' not in Path(n).parts for n in z.namelist())
+            z.extractall(source)
+    # Kaggle can also expand an uploaded ZIP automatically.
+    for directory in Path('/kaggle/input').rglob('feature_names.json'):
+        if directory.parent.name=='seed-cache' and not (source/'seed-cache').exists():
+            shutil.copytree(directory.parent,source/'seed-cache')
     # Restore losslessly compressed float32 features using explicit filename order.
     compressed=source/'seed-cache/features.npz'
     if compressed.exists():
