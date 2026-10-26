@@ -20,6 +20,7 @@ def run():
     bind_manifest(base/'reserved_fresh_test','queries.json',fresh)
     print('FRESH TEST RESERVED; NO TEST INFERENCE:',fingerprint(fresh['queries']),flush=True)
     paths=[p for p in Path('/kaggle/input').rglob('queries.json') if p.parent.name in {'qwen15screen','development'}]
+    paths += list((source/'seed-cache').rglob('queries.json'))
     candidates=[]
     for p in paths:
         q=read_json(p)['queries']
