@@ -1,78 +1,97 @@
-# Reproducing the research results
+# Reproducing the completed COMP4901B study
 
-Use this existing repository. Credentials, neural weights and raw experiment
-archives stay outside Git under ignored `outputs/`; portable linear predictors,
-protocols and numerical summaries belong in `results/`.
+[REPORT.md](REPORT.md) is the consolidated manuscript.
+[COMP4901B_research.pptx](COMP4901B_research.pptx) is its 12-slide presentation.
+The [figures](figures/) contain six PNG/PDF pairs. Earlier summaries and the
+standalone architecture audit remain historical records, not competing reports.
 
-## Records
+## Evidence and evaluation structure
 
-| Stage | Code / immutable records | Cached components |
+| Stage | Authoritative numerical records in `results/` | Implementation / cached outputs |
 |---|---|---|
-| Original confirmation | `src/aca/confirmatory.py`; `results/qwen15_methods.json`, `confirmatory_protocol.json`, `qwen15_confirmatory.json`, `qwen15_confirmatory_provenance.json` | `outputs/kaggle-confirmatory-v7/outputs/confirmatory/` |
-| Post-test exploration | `src/aca/exploratory_mixture.py`; `results/qwen15_exploratory_mixture.json` | Same original cache; no new GPU calls |
-| Final benefit extension | `src/aca/benefit.py`, `benefit_analysis.py`; `results/benefit_protocol.json`, `benefit_reservation.json`, `benefit_methods.json`, `benefit_development.json`, `benefit_diagnostics.json`, `benefit_provenance.json` | Development collection via `kaggle/benefit_runner.py`; only 1,024 missing strong training answers |
+| Frozen original confirmation | `qwen15_methods.json`, `confirmatory_protocol.json`, `qwen15_confirmatory.json`, `qwen15_confirmatory_provenance.json` | `src/aca/confirmatory.py`; `outputs/kaggle-confirmatory-v7/outputs/confirmatory/` |
+| Post-test model preselection | `qwen15_exploratory_mixture.json` | `src/aca/exploratory_mixture.py`; same original-test cache |
+| Benefit-aware development STOP | `benefit_protocol.json`, `benefit_methods.json`, `benefit_development.json`, `benefit_diagnostics.json`, `benefit_provenance.json`, `benefit_reservation.json` | `src/aca/benefit.py`, `benefit_analysis.py`; `outputs/kaggle-benefit-development-v1/` |
+| Pre-generation development audit, `ffe94cf` | `pregeneration_protocol.json`, `pregeneration_selected.json`, `pregeneration_audit.json`, `pregeneration_diagnostics.json`, `pregeneration_provenance.json` | `src/aca/pregeneration.py`, `scripts/report_pregeneration_audit.py`; `outputs/pregeneration-audit/` and original development cache `outputs/kaggle-qwen15-v6/outputs/qwen15screen/` |
 
-The extension protocol was committed at **5f2149b** before inference. Execution
-packaging at **8506d5a** uses the same methods and protocol. The reserved fresh
-512-question test is disjoint from all 3,104 earlier questions; its hash is in the
-reservation record. The fixed gate returned **STOP**: no point passed, so the fresh test remains
-unused and no further extension inference should run. Never use the original
-test for extension predictor fitting, regularization/threshold selection or a
-new confirmatory claim. The extension was motivated by the earlier post-test
-diagnosis, not conceived before that original test.
+Training/calibration/assessment are 1,024/128/128 official-training questions.
+The original 512-question test was evaluated once under its frozen protocol, then
+reused for explicitly exploratory analysis. Development data were reused for both
+follow-ups. The reserved fresh 512 questions exclude all 3,104 earlier distinct
+queries and remain unused. No new final-test evaluation belongs to the final
+writing/figure-validation workflow.
 
-## Offline reproduction
+All intervals use 10,000 paired query bootstrap samples. Original confirmation
+uses seed 4901 and Bonferroni-8 familywise intervals; post-test exploration uses
+4903 and unadjusted pointwise intervals; the benefit gate uses 4904 and
+Bonferroni-16. The architecture audit uses 4905 with selected-family Bonferroni-40
+and matched-budget Bonferroni-9 as separate families. Its retrospectively
+highlighted .5-cut intervals are pointwise, unadjusted and not confirmatory.
+Zero differences for identical endpoint mixtures do not establish signal equivalence.
+
+## Preservation and local archives
+
+Code, pinned inference settings, frozen evaluations and saved numerical results
+are retained. Neural weights, credentials, raw per-query caches and temporary
+outputs remain outside Git under ignored `outputs/`. A fresh clone can inspect
+summaries and view all figures/slides, but reproducing per-query analyses requires
+the original private local archives.
+
+The benefit archive is `outputs/benefit-results(1).zip`, SHA256
+`9488d43cd27cab50e19b860ca38eaf7d1f75924d3cafa44f96c8d042ea1c6228`, extracted
+at `outputs/kaggle-benefit-development-v1/`. It contains paired predictions,
+features, costs, manifests, portable predictors, scores and decisions. Its stale
+`run_failure.json` records an initial CPU packaging error after collection;
+lossless aligned feature restoration and successful recovery are documented in
+`benefit_provenance.json`. The final `analysis/development.json` is authoritative.
+The GPU session was stopped after the complete ZIP was preserved and verified.
+
+The benefit protocol was committed at `5f2149b` before missing training inference;
+packaging at `8506d5a` preserved the method. The architecture protocol was committed
+at `35cdebd` before replay. Its later ID-key repair left calibration choices and
+rules unchanged. Every audit output is development-only; its .5 example was
+highlighted after replay and was never selected for confirmation.
+
+Warm component replay is not deployment latency. Ordinary QA prefill/decoding
+and retained-KV/interposition costs were not measured separately; the audit's
+prefill fractions are hypothetical. The proposed development timing measurement
+was not run. No new GPU calls, fitting or policy searches are needed for final
+manuscript preparation.
+
+## Viewing and regenerating deliverables
 
 ```bash
 python -m pip install -e '.[dev]'
 python -m pytest -q
-python -m aca.exploratory_mixture --cache outputs/kaggle-confirmatory-v7/outputs/confirmatory --out outputs/exploratory_reproduction
 python scripts/build_report_figures.py
 ```
 
-The completed extension archive is `outputs/benefit-results(1).zip`, SHA256
-`9488d43cd27cab50e19b860ca38eaf7d1f75924d3cafa44f96c8d042ea1c6228`.
-It is extracted to `outputs/kaggle-benefit-development-v1/`. Preserve this
-complete directory. Its `development/` stores paired predictions, features, measured times,
-inference manifests and overhead; `analysis/` stores portable predictors, frozen
-thresholds, calibration/assessment scores, per-query decisions and the gate result.
-Rebuild the development diagnostics without fitting or changing policies:
+The figure builder reproduces the original-confirmatory, exploratory-preselection,
+correctness/rescue, break-even and benefit-development pairs from preserved
+summaries. The sixth pair, `pregeneration_audit.png/.pdf`, is also tracked; its
+original builder is `scripts/report_pregeneration_audit.py`. That script requires
+the original development cache and recomputes read-only diagnostics, without
+fitting or selecting policies. It was not rerun for the manuscript consolidation.
+
+The presentation builder edits the existing deck while retaining its dimensions,
+style, original routing diagram and original native charts. Original chart XML
+and embedded workbooks are preserved from the source after import; the new audit
+chart uses the saved diagnostic values. It uses the Codex
+bundled Node/artifact-tool/Python runtime and installed Presentations skill:
 
 ```bash
-python -m aca.benefit_analysis --root outputs/kaggle-benefit-development-v1/development --analysis outputs/kaggle-benefit-development-v1/analysis --out outputs/benefit-review --original-methods results/qwen15_methods.json
+RUNTIME_NODE_MODULES=/absolute/path/to/runtime/node_modules \
+RUNTIME_PYTHON=/absolute/path/to/runtime/python3 \
+PRESENTATIONS_SKILL_DIR=/absolute/path/to/presentations/skill \
+/absolute/path/to/runtime/node scripts/build_research_presentation.mjs outputs/reproduced/COMP4901B_research.pptx
 ```
 
-The archive's stale `run_failure.json` records the initial CPU missing-feature
-packaging error after collection. The lossless feature restoration and successful
-CPU recovery are documented in `results/benefit_provenance.json`; the final
-`analysis/development.json` governs the STOP result. The GPU session was stopped
-after downloading and verifying the ZIP. The live draft was used because Kaggle's
-saved-version service failed. Existing archives are local, private, ignored files;
-a fresh clone needs the original caches to reproduce all per-query analyses.
-Tracked JSON files support inspection and figure/deck regeneration without weights.
-
-The thin runner is generated by `scripts/build_benefit_bundle.py`; upload its
-notebook and attach its **private** `seed-cache.zip` data artifact. Source/cache
-hashes and explicit feature-to-record alignment are checked. Existing predictions
-are skipped on resume. Keep pinned model revisions, NF4 FP32 settings and the
-inference manifest unchanged; failures to match are errors, not cache misses.
-
-## Deliverables
-
-`REPORT.md` is the editable technical report. `COMP4901B_research.pptx` contains
-native editable charts, tables and the routing diagram, plus source notes.
-`figures/` contains 300-dpi PNG and vector PDF versions. Figures are rebuilt from
-archived numerical results; presentation chart data uses 12 significant digits
-for Excel compatibility while analytical JSON keeps full precision.
-
-The presentation builder is `scripts/build_research_presentation.mjs` and requires
-the Codex bundled presentation runtime and its installed Presentations skill.
-Its private render/validation records stay in `outputs/report-build/`. The deck
-is structurally validated and visually inspected; this is not a native
-PowerPoint/Google Slides application compatibility test.
-
-All intervals are labeled by stage: original familywise eight-point bootstrap,
-exploratory pointwise bootstrap, and extension familywise sixteen-point development gate.
-Warm component-time replay is not deployment latency. Final author names and
-the course's submission template/length/timing still require course-specific
-editing; no new methodological search is authorized by these instructions.
+The output path must be new. The existing presentation is the default source;
+an optional second positional argument selects a preserved source copy. Private
+source copies, slide renders and validation receipts stay in `outputs/report-build/`.
+After validation, the final writing workflow replaces the existing deliverable
+with the validated file. Charts/tables remain native and editable. Chart data uses
+12 significant digits for workbook portability; analytical JSON retains full precision.
+Structural/import checks and visual review do not establish native PowerPoint or
+Google Slides compatibility. Author names and course-specific format/timing are
+the only remaining submission details.

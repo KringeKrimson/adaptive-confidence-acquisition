@@ -1,26 +1,30 @@
 # Adaptive Confidence Acquisition for Cost-Aware LLM Routing
 
-New development-only [pre-generation architecture audit](deliverables/PREGENERATION_AUDIT.md):
-IC can precede generation and avoid redundant small QA, but calibration selects
-confidence-free model endpoints. Prefill/selective-IC costs remain hypothetical;
-no new GPU inference or test evaluation was run.
+Completed COMP4901B research using **Qwen2.5-1.5B-Instruct → Qwen2.5-14B-Instruct**
+on closed-book TriviaQA.
 
-Completed research deliverables: [technical report](deliverables/REPORT.md),
-[editable presentation](deliverables/COMP4901B_research.pptx), and
-[reproduction guide](deliverables/REPRODUCIBILITY.md). The original confirmatory
-result remains negative. The final benefit-aware extension completed its fixed
-development screen and returned **STOP**; the reserved fresh test remains unused.
-No further GPU experiments are planned. The historical records below are retained.
+- [Consolidated research report](deliverables/REPORT.md)
+- [12-slide editable presentation](deliverables/COMP4901B_research.pptx)
+- [Publication figures: six PNG/PDF pairs](deliverables/figures/)
+- [Reproducibility guide and evidence map](deliverables/REPRODUCIBILITY.md)
 
-COMP4901B experiment: does acquiring query-level Internal Confidence (IC) only
-near an ambiguous cheap-probe decision improve a small-to-strong cascade?
-The completed Qwen2.5-1.5B → Qwen2.5-14B confirmatory experiment found no
-precommitted practically meaningful adaptive-IC advantage. The separate post-test
-model-preselection analysis is exploratory. See the concise
-[group-review research summary](RESEARCH_SUMMARY.md) for results, limitations and
-report-ready figures. Historical pilots, the failed Phi→Qwen-14B screen and
-execution instructions are retained below for reproducibility; no further GPU
-experiments or model-pair searches are planned.
+The frozen original experiment found no practically meaningful adaptive-IC gain
+over cost-matched cheap routing. Independent model preselection was a stronger
+**post-test exploratory** baseline for the evaluated points. Direct-benefit
+predictors failed their development gate. The pre-generation audit found lower
+replayed cost for one unselected IC-only rule, but no stable IC advantage across
+calibration and assessment. The fresh 512-question reservation remains unused.
+
+The report consolidates all completed findings through audit commit `ffe94cf`.
+The [earlier group summary](RESEARCH_SUMMARY.md) and
+[standalone development audit](deliverables/PREGENERATION_AUDIT.md) remain historical
+records. No further GPU experiments, model training or routing searches are planned.
+Only author details and course-specific submission formatting/timing remain.
+
+## Historical implementation and experiment record
+
+The commands and chronology below are retained for provenance. They describe
+past experiments rather than additional work required for the completed study.
 
 ## Run
 
