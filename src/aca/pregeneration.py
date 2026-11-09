@@ -135,7 +135,8 @@ def load_development(root,methods):
     partitions=[]
     for part,ids in [('calibration',original['selection_ids']),('assessment',original['assessment_ids_excluded_from_selection'])]:
         ordered=[next(r for r in rows if r['id']==i) for i in ids];assert all(r['partition']==part for r in ordered)
-        partitions.append({k:np.array([r[k] for r in ordered]) for k in ordered[0]})
+        d={k:np.array([r[k] for r in ordered]) for k in ordered[0]}
+        d['ids']=d.pop('id');partitions.append(d)
     return *partitions,original
 
 
@@ -172,7 +173,10 @@ def evaluate(root,out,methods):
             key=f'prefill-{name}-rho{rho:g}'
             runners[key]=lambda p,d,r=rho:prefill_replay(d,**p,rho=r)
             frozen[key]=select(choices,cal,runners[key])
-    atomic_json(out/'calibration_selected.json',dict(protocol_hash=fingerprint(PROTOCOL),families=frozen))
+    selected=dict(protocol_hash=fingerprint(PROTOCOL),families=frozen)
+    if (out/'calibration_selected.json').exists():
+        assert read_json(out/'calibration_selected.json')==selected,'Calibration selection changed'
+    else:atomic_json(out/'calibration_selected.json',selected)
     rng=np.random.default_rng(PROTOCOL['seed']);indices=rng.integers(0,len(assess['ids']),size=(PROTOCOL['bootstrap_repeats'],len(assess['ids'])))
     decisions={}
     for key,points in frozen.items():

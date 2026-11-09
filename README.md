@@ -1,5 +1,10 @@
 # Adaptive Confidence Acquisition for Cost-Aware LLM Routing
 
+New development-only [pre-generation architecture audit](deliverables/PREGENERATION_AUDIT.md):
+IC can precede generation and avoid redundant small QA, but calibration selects
+confidence-free model endpoints. Prefill/selective-IC costs remain hypothetical;
+no new GPU inference or test evaluation was run.
+
 Completed research deliverables: [technical report](deliverables/REPORT.md),
 [editable presentation](deliverables/COMP4901B_research.pptx), and
 [reproduction guide](deliverables/REPRODUCIBILITY.md). The original confirmatory
