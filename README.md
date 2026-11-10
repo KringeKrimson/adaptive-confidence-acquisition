@@ -21,6 +21,31 @@ The [earlier group summary](RESEARCH_SUMMARY.md) and
 records. No further GPU experiments, model training or routing searches are planned.
 Only author details and course-specific submission formatting/timing remain.
 
+## Collaborator setup
+
+After accepting access to this private repository:
+
+```bash
+git clone https://github.com/KringeKrimson/adaptive-confidence-acquisition.git
+cd adaptive-confidence-acquisition
+python3.11 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e '.[dev]'
+python -m pip check
+HF_HUB_OFFLINE=1 HF_DATASETS_OFFLINE=1 OMP_NUM_THREADS=1 python -m pytest -q
+python scripts/build_report_figures.py
+```
+
+This CPU-only workflow passed in a clean clone on 10 November 2026: 47 tests and
+five figure pairs. The sixth figure and all published numerical summaries are
+already tracked. Full per-query replay needs separately shared private caches;
+GitHub access does not grant access to the author's Kaggle notebooks or datasets.
+No `.ipynb` is tracked: `scripts/kaggle_bundle.py` generates a self-contained
+notebook for your own account. See the [collaborator instructions](deliverables/REPRODUCIBILITY.md#collaborator-setup-and-kaggle-execution)
+for the final model pair, frozen runtime requirements, cache-sharing checklist
+and new-experiment commands. Do not use the historical default Phi pilot as a
+reproduction of the final Qwen study.
+
 ## Historical implementation and experiment record
 
 The commands and chronology below are retained for provenance. They describe

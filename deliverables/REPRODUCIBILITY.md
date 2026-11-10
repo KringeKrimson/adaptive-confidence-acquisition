@@ -58,6 +58,106 @@ prefill fractions are hypothetical. The proposed development timing measurement
 was not run. No new GPU calls, fitting or policy searches are needed for final
 manuscript preparation.
 
+## Collaborator setup and Kaggle execution
+
+Use the [README setup](../README.md#collaborator-setup) for a fresh CPU environment.
+Python 3.11 was tested; the GPU extra is for a supported CUDA/Linux environment,
+not the Mac CPU audit. Dependencies are declared in `pyproject.toml`; some versions
+float, so a successful install is not an exact historical inference environment.
+
+The final pair's pinned [1.5B](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct)
+and [14B](https://huggingface.co/Qwen/Qwen2.5-14B-Instruct) model configurations and
+weight-shard metadata, and pinned
+[TriviaQA](https://huggingface.co/datasets/mandarjoshi/trivia_qa) parquet metadata,
+were accessible with `token=False` on 10 November 2026. No gated Llama access or
+HF token is required. This check did not download weights or run inference.
+
+There is **no tracked `.ipynb`**. The committed generator embeds only committed
+source and required frozen settings into an output-free upload notebook:
+
+```bash
+python scripts/kaggle_bundle.py --owner YOUR_KAGGLE_USERNAME --mode qwen15screen --out outputs/kaggle-own-account
+```
+
+Replace the owner explicitly; the historical generator default names the author.
+Upload `outputs/kaggle-own-account/experiment.ipynb` to a new private notebook in
+your account, enable Internet and T4×2, and complete Kaggle's account/GPU eligibility
+requirements. This mode has no attached private input dependencies. It runs an
+automatic eight-query engineering smoke, then the historical 1,024/256 development
+screen; **Run All spends GPU quota**. It does not evaluate the original or fresh
+final test. These are reproduction instructions, not additional planned research.
+The `pilot` default uses the earlier Phi pair and 32-token settings.
+
+For CLI upload, authenticate with your own account using `kaggle auth login`, then
+`kaggle kernels push -p outputs/kaggle-own-account`; alternatively use the browser.
+See [official authentication instructions](https://github.com/Kaggle/kaggle-cli/blob/main/docs/README.md#authentication).
+Keep tokens in the platform secret store or user credential directory, never in
+source, notebook cells/outputs or shared archives. Model/data access here is anonymous.
+Save a completed Kaggle version and download its outputs before ending a session.
+Resume only with the matching cache and explicit input attachment; a private
+`--resume-kernel` source requires a separate Kaggle permission grant.
+
+Exact historical inference needs the runtime recorded in
+[`qwen15_methods.json`](../results/qwen15_methods.json), not merely `.[gpu]`:
+Python 3.13.15, torch 2.11.0+cu128/CUDA 12.8, transformers 4.46.3,
+accelerate 1.1.1, bitsandbytes 0.49.2, tokenizers 0.20.3, numpy 2.1.3,
+datasets 3.1.0, pyarrow 18.1.0, pandas 2.2.3 and safetensors 0.8.0, on Tesla T4.
+The notebook installer does not pin the Kaggle base image or the floating torch
+dependency. Check and match this manifest before attempting a historical rerun;
+do not weaken the frozen evaluator's version/hash guards to accept a new runtime.
+Hardware timing will still vary. `--mode confirmatory` can generate the historical
+test runner without a private cache, but it spends inference and touches the
+already-consumed original test; it is unnecessary for inspecting the saved result.
+No new final-test evaluation was performed during this audit.
+
+For an independent engineering smoke on CUDA, a new directory and explicit final
+pair avoid the legacy defaults:
+
+```bash
+aca prepare --out outputs/my-smoke --train 8 --validation 8 --test 0 --seed 4902 --revision 0f7faf33a3908546c6fd5b73a660e0f8ff173c2f
+aca collect --out outputs/my-smoke --small-model Qwen/Qwen2.5-1.5B-Instruct --strong-model Qwen/Qwen2.5-14B-Instruct --quantization 4bit-fp32 --max-new-tokens 64 --answer-stop first-line --stages small ic strong --splits train validation
+```
+
+This is a mechanics check, not a new accuracy estimate. For later experiments,
+commit source changes before bundling, use a separate branch/output/protocol,
+and keep the existing frozen artifacts intact. `src/aca/routing.py` contains
+policy actions and cost replay; `benefit.py` and `pregeneration.py` contain the
+extensions; `collect.py`, `models.py` and `storage.py` handle inference/resume.
+Tests exercise these interfaces with synthetic caches and tiny random CPU models.
+Changing inference settings or code requires a new cache; existing manifests
+deliberately reject incompatible reuse. New scientific claims require new
+development/test separation, not reuse of the consumed original test.
+
+### Private files needed for full per-query replay
+
+GitHub collaborator access does not share the author's private Kaggle resources.
+No public cache download is configured. Ask the owner to share only the relevant
+archives/directories, preserving their relative paths:
+
+| Required replay | Separately shared material |
+|---|---|
+| Original confirmation and post-test mixture | `outputs/kaggle-confirmatory-v7/outputs/confirmatory/`, including scores, manifests, component records and decisions; archive hash is in `qwen15_confirmatory_provenance.json` |
+| Original development and pre-generation audit | `outputs/kaggle-qwen15-v6/outputs/qwen15screen/` and `outputs/pregeneration-audit/`, including its results and assessment decisions |
+| Benefit development STOP | Complete `outputs/kaggle-benefit-development-v1/` or the verified benefit ZIP identified above; includes restored features and portable analysis models |
+| Exact reservation / benefit bundle reconstruction | `outputs/benefit_inputs/excluded.json`, `reservation.json` and `fresh_test/queries.json`; preserve the reservation hashes and leave the fresh test unused |
+
+Use a private file transfer or separately grant access to the matching Kaggle
+version/data artifact. Validate archives against the tracked provenance hashes;
+do not share the entire local `outputs/` tree, credentials or weights. The benefit
+bundle generator depends on these caches and cannot work from a clone alone.
+The exact fresh reservation cannot safely be recreated by scanning an empty
+clone's `outputs/`; share the existing manifests instead.
+
+After restoration, offline mixture replay can write a separate result directory:
+
+```bash
+python -m aca.exploratory_mixture --cache outputs/kaggle-confirmatory-v7/outputs/confirmatory --out outputs/mixture-reproduction
+python -m aca.benefit_analysis --root outputs/kaggle-benefit-development-v1/development --analysis outputs/kaggle-benefit-development-v1/analysis --out outputs/benefit-review --original-methods results/qwen15_methods.json
+```
+
+These commands need no GPU and do not select a new policy. Do not overwrite the
+tracked numerical summaries with a rerun.
+
 ## Viewing and regenerating deliverables
 
 ```bash
@@ -95,3 +195,50 @@ with the validated file. Charts/tables remain native and editable. Chart data us
 Structural/import checks and visual review do not establish native PowerPoint or
 Google Slides compatibility. Author names and course-specific format/timing are
 the only remaining submission details.
+
+## Collaborator audit, 10 November 2026
+
+At `efc0fcc`, the fetched remote exposed one branch (`main`), no tags and 29
+reachable commits. Gitleaks 8.30.1 scanned all-refs history, all 175 unique
+historical file blobs, the 85 tracked files, and 8,978 pre-existing local output
+files, including generated notebooks/archives (archive depth four, decode depth
+five). Additional checks covered provider-token/password patterns, sensitive
+filenames, credential-bearing URLs, personal absolute paths, extracted historical
+PDF/Office text and local Git authentication configuration. **No genuine
+credential or tracked personal absolute-path candidate was detected.** Public
+account names, historical Kaggle links and the overridable notebook-owner default
+remain; these are identifiers, not credentials.
+
+A clean GitHub clone installed `.[dev]`, passed `pip check` and all 47 tests with
+network/model downloads disabled during tests, verified frozen implementation
+hashes, and rebuilt five figure pairs. Generated development/confirmatory notebooks
+passed notebook-schema, Python-cell compilation, payload-hash and own-account
+metadata checks. Their GPU cells were not executed. All six published figure pairs
+are available in Git, but the sixth builder requires private development caches.
+Tables and saved intervals can be inspected from tracked JSON; independent
+per-query/bootstrap regeneration requires the separately shared records above.
+Rebuilding the deck additionally needs the non-PyPI bundled presentation runtime
+described above; viewing/editing the existing PPTX does not.
+
+The credential assessment is a bounded **PASS**; independent Kaggle execution and
+full result regeneration are **PARTIAL** pending GPU/runtime verification and cache
+sharing; code extensibility passes the offline interface/tests check. This is not
+proof of the absence of every possible secret, an OCR/encrypted-file audit, a
+dependency-vulnerability audit, or coverage of inaccessible/deleted remote refs.
+No history rewrite or credential rotation was indicated by these findings.
+
+`.gitignore` excludes common credentials, notebook checkpoints, weights and private
+archives. It does not protect already tracked files or forced adds. Before sharing
+or committing, review staged filenames and run an installed
+[Gitleaks](https://github.com/gitleaks/gitleaks) scanner with redaction:
+
+```bash
+git diff --cached --stat
+gitleaks git --staged --redact=100 --ignore-gitleaks-allow .
+gitleaks git --log-opts="--all" --redact=100 --ignore-gitleaks-allow .
+```
+
+Keep scanner reports under ignored `outputs/` and never paste raw suspected
+credentials. If a future scan finds a real credential, notify its owner/provider,
+revoke or rotate it, and agree on history cleanup separately; deletion alone does
+not remove prior commits.
