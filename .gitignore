@@ -41,6 +41,8 @@ cache/
 *.npy
 *.log
 *.zip
+# Whitelist-built course code submission only; other archives remain ignored.
+!deliverables/COMP4901B_code.zip
 *.tar
 *.tar.gz
 *.tar.xz

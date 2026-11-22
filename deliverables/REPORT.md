@@ -2,6 +2,12 @@
 
 **COMP4901B research project · Consolidated manuscript · 9 November 2026**
 
+**Course submission, 22 November 2026:** the shortened conference paper is the
+[EMNLP/ACL-style PDF](COMP4901B_report.pdf), with [LaTeX source](REPORT.tex).
+It has eight main-text pages, plus references and appendices. This Markdown file
+retains the full consolidated evidence manuscript; frozen numerical records are
+unchanged.
+
 **Authors:** [complete author names and affiliations]
 
 ## Abstract

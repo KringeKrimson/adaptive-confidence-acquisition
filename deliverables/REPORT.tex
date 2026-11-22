@@ -1,0 +1,355 @@
+\documentclass[11pt]{article}
+% Official ACL style, used by EMNLP; unchanged style files are included.
+\usepackage[preprint]{acl}
+\usepackage{times}
+\usepackage{latexsym}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{microtype}
+\usepackage{inconsolata}
+\usepackage{graphicx}
+\usepackage{booktabs,tabularx,amsmath,amssymb}
+\usepackage{enumitem}
+\usepackage{placeins}
+\providecommand{\paperfigures}{paper_figures/}
+\graphicspath{{\paperfigures}}
+\newcommand{\EM}{\operatorname{EM}}
+\newcommand{\IC}{\operatorname{IC}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\pp}{\,\text{pp}}
+\title{Adaptive Confidence Acquisition for Cost-Aware LLM Routing:\\
+A Negative Result and an Architectural Audit}
+% Replace the team label with the final author list before course submission.
+\author{COMP4901B Project Team \\
+  Large Language Models --- Fall 2026 \\
+  The Hong Kong University of Science and Technology}
+\date{}
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Can selectively computing an expensive confidence estimate improve a small-to-strong language-model cascade? We study adaptive Internal Confidence (IC) acquisition on closed-book TriviaQA with Qwen2.5-1.5B-Instruct and Qwen2.5-14B-Instruct. A cheap hidden-state correctness probe handles clear decisions; ambiguous cases acquire question-only IC. In a frozen 512-question evaluation, the two distinct IC-using policies differ from cost-matched cheap routing by $+0.04$ and $-1.34$ percentage points, with familywise 95\% intervals $[-0.86,0.82]$ and $[-4.14,1.42]$. Neither satisfies the precommitted three-point practical-effect criterion. Post-test exploration finds independent model preselection more efficient than the evaluated cascades. Lightweight predictors of incremental escalation benefit subsequently fail a bounded development screen. A separate development-only audit verifies that IC can precede answer generation: one retrospectively highlighted, unselected rule saves 16.8\% of replayed service cost with identical answers. Its apparent assessment advantage conflicts with calibration and is statistically inconclusive. These findings distinguish confidence discrimination, incremental routing benefit and the computational cost of acquiring information; they do not establish a general failure of IC or cascading.
+\end{abstract}
+
+\section{Introduction}
+LLM routing seeks much of a strong model's answer quality while executing it on only a subset of queries. A small-to-strong cascade first runs an inexpensive model, then escalates cases judged insufficiently reliable. This can save computation only if the routing information is useful enough to recover its acquisition cost. Recognizing a likely small-model error is not sufficient: the strong model must be more likely to repair that error than to repeat it, and the selected calls must justify their own cost.
+
+Query-level Internal Confidence (IC) estimates answerability from internal Yes/No readouts without generating an answer \citep{chen2026query}. Our original hypothesis was that a cheap correctness probe could identify ambiguous decisions on which this additional information was worth acquiring. We implemented an answer-first cascade: the small model generates an answer and captures a prompt representation, the probe handles clear cases, and ambiguous cases acquire IC before accepting the small answer or invoking the strong model.
+
+The frozen comparison yields a negative result. Adaptive IC makes locally useful changes at one operating point, but those improvements do not survive a comparison that lets cheaper confidence spend the same total budget on stronger answers. An additional baseline exposes another opportunity cost: choosing the strong model before generation avoids executing an unnecessary small answer. Moving IC before generation reduces that avoidable cost, but does not by itself establish that IC outperforms independent model choice.
+
+We consolidate four completed stages with different evidential status: (i) the original confirmatory adaptive-versus-cheap test; (ii) post-test exploratory model preselection; (iii) a development-only benefit-aware extension; and (iv) a development-only pre-generation audit. We preserve the frozen test and do not convert later discoveries into confirmatory claims. The reserved fresh test remains unused.
+
+Our contribution is a controlled negative result with explicit information costs, followed by a bounded diagnosis of targeting and architecture. Learned routing, relative-quality prediction, probabilistic model mixtures and quality-minus-cost optimization are established ideas. We do not claim novelty for those components or for the accounting identities below.
+
+\section{Background and Related Work}
+\paragraph{Query-level confidence.}
+\citet{chen2026query} introduce training-free IC by aggregating binary answerability readouts across tokens and layers. They evaluate confidence quality, runtime and adaptive inference, including model cascading. Their work considers inference costs; our criticism concerns our answer-first implementation, not an omission in their study. We transfer their readout configuration to a quantized Qwen pair and evaluate strict alias exact match rather than their factual-QA ROUGE-L threshold. Consequently, this is not an exact reproduction of their model-specific results.
+
+\paragraph{Routing and cascading.}
+FrugalGPT learns cost-constrained cascades with query-and-answer reliability scoring \citep{chen2023frugalgpt}. RouteLLM learns query-dependent preferences for choosing a model before generation \citep{ong2025routellm}. \citet{dekoninck2026unified} unify routing and cascading through expected quality and cost, including ex-ante and post-hoc quality information. These distinctions motivate charging the computation that makes a routing decision possible. Our benefit-aware predictors are simple regularized controls within this established design space.
+
+\paragraph{Benchmarks and simple controls.}
+RouterBench's Zero Router already uses probabilistic model mixtures on a cost--quality convex hull \citep{hu2024routerbench}; our independent two-model mixture is a special case. LLMRouterBench emphasizes unified quality--cost evaluation and gaps to label-aware oracles \citep{li2026llmrouterbench}. We do not run either benchmark or claim a general ranking of routers. Their relevance is methodological: a selective system should be compared with strong, inexpensive controls and an explicitly unattainable oracle.
+
+\section{Task, Data, Models and Resources}
+\label{sec:resources}
+\paragraph{Task and partitions.}
+We use closed-book TriviaQA, configuration \texttt{rc.nocontext}, supplying no retrieved evidence \citep{joshi2017triviaqa}. Correctness is normalized exact match (EM) against reference aliases; token F1 is a secondary recorded measure. Pinned-revision streaming, a fixed shuffle buffer and deterministic seeds define project subsamples, with exclusions by question ID and normalized text. Table~\ref{tab:splits} separates the permitted uses. The final pair's viability pass was computed on the matched 128-query assessment subset: small-only 36.72\%, strong-only 57.03\%, and cheap routing 48.44\% at 77.99\% of strong-only service cost. It established pair viability, not IC value.
+
+\begin{table}[t]
+\centering\small\setlength{\tabcolsep}{5pt}
+\begin{tabular}{lrl}
+\toprule
+Partition & $n$ & Official source / use \\
+\midrule
+Training & 1,024 & Train; predictor fitting \\
+Calibration & 128 & Train; hyperparameters/rules \\
+Assessment & 128 & Train; development readout \\
+Original test & 512 & Validation; frozen evaluation \\
+Fresh reservation & 512 & Validation; \emph{unused} \\
+\bottomrule
+\end{tabular}
+\caption{Project splits. Post-test exploration reuses the consumed original test. Both follow-ups reuse development assessment; neither supplies fresh confirmation.}
+\label{tab:splits}
+\end{table}
+
+\paragraph{Models and decoding.}
+The final small/strong pair is Qwen2.5-1.5B-Instruct/Qwen2.5-14B-Instruct. Both use NF4 double-quantized 4-bit weights, FP32 compute and nonquantized modules, eager attention, batch size one and greedy decoding. Generation stops after the first nonempty answer line or EOS, with a 64-token cap. The original test has zero small and two strong cap hits. Earlier 32-token pilots and failed feasibility screens are retained historically, not pooled into the final estimates.
+
+\paragraph{Resource assumptions.}
+Collection ran sequentially on GPU0 of Kaggle T4$\times$2; the 14B peak allocation was 13.46\,GB. This demonstrates compatibility for that configuration, not simultaneous residency. The saved runtime is Python 3.13.15, torch 2.11.0+cu128/CUDA 12.8, transformers 4.46.3, accelerate 1.1.1 and bitsandbytes 0.49.2. Exact revisions and remaining versions appear in Appendix~\ref{app:config}. No paid generation API was used. The models and dataset were accessed anonymously; reproducing execution requires Internet, a compatible GPU and the appropriate Kaggle account eligibility.
+
+\section{System Design and Cost Accounting}
+\label{sec:method}
+For query $i$, let $Y_{S,i},Y_{T,i}\in\{0,1\}$ denote small/strong correctness and $\Delta_i=Y_{T,i}-Y_{S,i}$ the signed escalation benefit. Let $a_i$ select the strong answer and $b_i$ acquire IC. Every fixed two-model policy has correctness
+\begin{equation}
+Y_i=Y_{S,i}+a_i\Delta_i.
+\end{equation}
+This benefit distinguishes rescues ($\Delta=1$), harms ($\Delta=-1$) and unchanged correctness ($\Delta=0$).
+
+\subsection{Cheap confidence and IC}
+The cheap score $c_i$ comes from logistic regression on 1,536-dimensional final normalized hidden states at the last ordinary-QA prompt token. Standardization uses training only; calibration log loss selects $C=.01$. A hook captures the representation during ordinary prefill without another model pass, but the original system completes small QA before applying the probe. The feature is not an answer-token representation.
+
+For IC, a separate prompt contains the question and asks whether the model can answer it accurately. Binary-softmax Yes probability $p_{j,l}$ is read from the small model at each of the final $K=6$ prompt tokens and all $L=29$ states. The states include the embedding and final normalized output, without extra intermediate RMS normalization. The score is
+\begin{align}
+\IC_i &= \sum_{j=0}^{K-1}\sum_{l=0}^{L-1}u_jv_l p_{j,l},\\
+u_j&\propto e^{-(j-K+1)^2},\quad
+v_l\propto e^{-(l-L+1)^2},
+\end{align}
+with separately normalized weights. This follows the released readout while transferring the Qwen configuration to 1.5B. Selecting only Yes/No output-head rows is algebraically equivalent to full projection followed by binary selection; the GPU check's maximum probability error was $9.54\times10^{-7}$. Exact prompts and implementation provenance are in Appendix~\ref{app:config}.
+
+\subsection{Policies and incremental costs}
+Adaptive routing acquires IC if $|c_i-\tau|<w$. Otherwise the cheap threshold decides escalation; acquired cases use a separate IC threshold. Let $S_i,T_i,I_i$ denote synchronized warm small-QA, strong-QA and IC times, and $P_i$ CPU probe time. The original adaptive cost is
+\begin{equation}
+C_{A,i}=S_i+P_i+b_iI_i+a_iT_i.
+\label{eq:cascade}
+\end{equation}
+Small-only pays $S$ and strong-only pays $T$. Cheap-only pays $S+P+aT$. Always-IC pays $S+I+aT$, omitting an unused probe. Random-IC averages 20 saved seeded schedules matched to adaptive acquisition's expected \emph{IC seconds}; its total routing cost can differ.
+
+Calibration selects rules at eight cost penalties $\lambda\in\{0,.025,.05,.1,.2,.4,.8,1.6\}$. The objective is EM minus relative service cost. The confidence grid, acquisition widths, probe and thresholds were frozen before test inference. The coarse original .1-spaced confidence grid omitted the viability screen's successful .15 cut; it was never retroactively refined on test labels.
+
+The measured metric is \emph{additive warm component service time}, not observed deployment latency, throughput, energy or dollars. Small QA includes feature capture. Required confidence/model calls are charged; loads and warmups are recorded separately. Cached replay is valid for the fixed, independently computed query/model outputs. It does not measure model switching, queueing, communication or residency in a live router.
+
+\section{Evaluation Protocol}
+\label{sec:eval}
+\paragraph{Frozen confirmatory comparison.}
+The primary baseline is a query-independent mixture of \emph{two frozen cheap-routing rules}, with its probability chosen using costs to match each adaptive point's mean service cost. It is not independent small/strong model preselection. Matching probabilities are recomputed in each paired bootstrap sample. No labels choose the endpoints or matching weights.
+
+A transparent analysis addendum committed after development but before final-test inference defined the practical criterion: support requires an exactly matched, nonzero-IC point with estimated gain at least $3\pp$ and familywise lower bound above zero. The lower bound need not itself exceed $3\pp$. This timing is disclosed rather than represented as preregistration of the entire research program.
+
+\paragraph{Uncertainty and subsequent stages.}
+All reported intervals use 10,000 paired query percentile-bootstrap resamples conditional on fitted methods and measured components. Original comparisons use seed 4901 with Bonferroni correction over eight settings. The post-test mixture uses seed 4903 and pointwise unadjusted 95\% intervals. The benefit gate uses seed 4904 and Bonferroni-16 intervals. The architecture audit uses seed 4905 with separate Bonferroni-40 selected-family and Bonferroni-9 budget families; its retrospectively highlighted .5-cut intervals are pointwise. These intervals omit training-seed and hardware-repeat uncertainty; the audit families are not one omnibus simultaneous guarantee.
+
+Thresholds and regularization use calibration only. Assessment is a development readout, not a tuning set, but repeated follow-up use prevents treating it as fresh confirmation. The new 512-question reservation excludes all 3,104 earlier distinct project questions and was not evaluated. No test outcome changes the original rules.
+
+\section{Results and Controlled Comparisons}
+\subsection{Original confirmatory result}
+\label{sec:confirmatory}
+On the original test, small-only answers 136/512 correctly (26.56\%) at .3336\,s/query; strong-only answers 316/512 (61.72\%) at 1.8655\,s. The strong model rescues 187 small errors and introduces seven harms. Mean IC costs .1514\,s per call, and CPU probe scoring .000176\,s. All 1,536 collected small/strong/IC test calls consumed 1,203.42 warm service seconds; loading cost 329.30\,s separately.
+
+\begin{table*}[t]
+\centering\small
+\begin{tabular}{lrrrrl}
+\toprule
+Frozen penalties & Adaptive EM & Matched cheap EM & Both: s/query & Gain (pp) & Familywise 95\% interval (pp) \\
+\midrule
+$0,.025,.05,.1,.2$ & 60.55\% & 60.51\% & 2.1161 & $+0.04$ & $[-0.86,+0.82]$ \\
+$.4$ & 33.59\% & 34.93\% & .7732 & $-1.34$ & $[-4.14,+1.42]$ \\
+$.8,1.6$ (no IC) & 26.56\% & 26.56\% & .3338 & $0$ & $[0,0]$ \\
+\bottomrule
+\end{tabular}
+\caption{\textbf{Confirmatory, $n=512$.} The eight frozen settings yield three distinct behaviors. Neither IC-using behavior has a positive familywise lower bound or the precommitted estimated gain of at least 3\,pp. Intervals are unchanged from the frozen evaluation.}
+\label{tab:confirmatory}
+\end{table*}
+
+Table~\ref{tab:confirmatory} reports every behavior without selecting a new operating point. Neither IC-using rule is statistically positive or practically successful; both upper bounds are below the specified $+3\pp$ target. This is evidence against that target for these policies, not proof that IC's effect is exactly zero.
+
+At penalties 0--.2, IC acquisition is 4.49\%, escalation 94.53\%, and added IC cost 6.74\,ms/query. Relative to the same cheap cut without acquisition, IC changes seven choices: one beneficial, three harmful and three neutral. At $\lambda=.4$, acquisition is 21.88\%, escalation 19.53\%, and IC adds 33.21\,ms/query. It changes 100 choices: 36 beneficial, none harmful and 64 neutral. Those useful local changes do not beat the cost-matched cheap baseline, which can redirect the saved estimator budget to strong answers.
+
+\begin{figure*}[t]
+\centering\includegraphics[width=\textwidth]{paper_confirmatory.pdf}
+\caption{\textbf{Original frozen evaluation.} Accuracy--cost points and established baselines, with the primary matched-cheap comparison. Cost is additive component replay. The frontier is descriptive; it does not select a deployment threshold from test outcomes.}
+\label{fig:confirmatory}
+\end{figure*}
+
+Figure~\ref{fig:confirmatory} also includes always-IC and acquisition-budget-matched random-IC. The finite observed frontier contains small-only, strong-only and two intermediate controls: matched cheap routing (34.93\%, .7732\,s) and random-IC (35.65\%, .8898\,s). This frontier depends on the evaluated policy family.
+
+\subsection{Post-test exploratory model preselection}
+\label{sec:mixture}
+Independent preselection chooses strong with probability $p$ before generating an answer. It pays only the chosen model's cost:
+\begin{align}
+A(p)&=\overline{Y_S}+p\overline\Delta,\\
+C(p)&=\overline S+p(\overline T-\overline S).
+\label{eq:mixture}
+\end{align}
+Model-choice randomness is integrated analytically; these are expected outcomes, not one random assignment. On the original test, $A(p)=.265625+.3515625p$ and $C(p)=.333587+1.531904p$. Matching $p$ uses costs, not labels.
+
+At .7732\,s/query, expected preselection EM is 36.65\%, versus adaptive IC's 33.59\%: a $+3.06\pp$ difference, pointwise 95\% interval $[1.00,5.30]$. Its gain over the matched cheap mixture is $+1.72\pp$ $[1.33,2.17]$. At random-IC's .8898\,s, preselection reaches 39.33\%, a $+3.68\pp$ gain $[2.51,4.84]$. These unadjusted comparisons were added \emph{after inspecting the test}.
+
+Preselection dominates all 40 evaluated non-endpoint original cascade/control points in observed expected means (Figure~\ref{fig:mixture}). The expanded descriptive frontier connects small-only and strong-only. This is not simultaneous statistical dominance or a theorem that random routing universally beats cascades; some later development points lie slightly above this line.
+
+\begin{figure*}[t]
+\centering\includegraphics[width=\textwidth]{paper_preselection.pdf}
+\caption{\textbf{Post-test exploratory comparison.} Independent model preselection avoids small generation on strong-selected queries. The line is an expected randomized policy family. Paired intervals reported in the text are pointwise and conditional on the saved components, not a new confirmatory test.}
+\label{fig:mixture}
+\end{figure*}
+
+\paragraph{Break-even interpretation.}
+For an answer-first cascade with information cost $h_i$, expected cost is $\E[S]+\E[h]+\E[aT]$. If this lies between the single-model endpoints, the matched independent probability is
+\begin{equation}
+p=\frac{\E[h]+\E[aT]}{\E[T]-\E[S]}.
+\end{equation}
+The cascade wins only if $\E[a\Delta]>p\E[\Delta]$. With constant QA costs $s,t$, escalation rate $r>0$, global benefit $g>0$ and selected benefit $g_r$, this requires
+\begin{equation}
+\frac{g_r}{g}>\frac{t}{t-s}+\frac{\E[h]}{r(t-s)}.
+\label{eq:breakeven}
+\end{equation}
+The original mean QA costs imply an illustrative lift above 1.218 before IC overhead. Per-query replay, rather than this constant-cost illustration, determines our comparisons. Above strong-only cost, a clipped endpoint is not an exact cost match. With identical decisions, preselection avoids $\E[aS]$ of answer-first cost, subject to differences in information overhead.
+
+\subsection{Benefit-aware extension: development STOP}
+\label{sec:benefit}
+We evaluated one bounded extension predicting $(\Delta,S,T)$ with multioutput ridge regression: query-only word TF--IDF for preselection, or standardized 1,536-dimensional QA-prefill states for post-answer cascading. Query features require no small-model call on the strong branch. Hidden features are still prompt states, but this implementation pays full small QA. Measured CPU transform/prediction overhead is charged.
+
+Calibration benefit MSE chooses among ridge penalties $\{1,10,100,1000\}$, selecting 10 for query features and 1000 for hidden states. At the same eight cost penalties, calibration selects thresholds on predicted benefit minus predicted incremental cost: $\widehat T-\widehat S$ for preselection, $\widehat T$ for cascading. All 16 points remain in the evaluation.
+
+The fixed gate requires an exact random-preselection cost match, at least eight assessment queries in each branch, calibration and assessment gains each at least $3\pp$, and positive Bonferroni-16 lower bound. Only the 1,024 missing strong training predictions were collected (1,717.42 warm QA seconds; loading and warmup separate). Existing development features/predictions were reused. Models and thresholds were saved before assessment replay.
+
+Every point fails. The largest calibration gain is $1.075\pp$ and largest exactly matched assessment gain $.128\pp$ $[0,.720]$; no point retains eight assessment questions in both branches. These maxima describe the grid, not newly selected policies. Rescue-versus-rest AUROC is .478 for query features and .561 for hidden states; CPU scoring averages .489/.229\,ms, respectively. Strong-time prediction RMSE is about 1.08\,s. The gate returns \textbf{STOP}, so the reserved fresh test is not run. This bounded linear failure does not establish failure of benefit-aware routing generally.
+
+\subsection{Pre-generation architecture audit}
+\label{sec:audit}
+The development-only audit checks all 256 calibration/assessment IC records. Each contains a question-only forward, zero generated tokens and a $6\times29$ matrix that reaggregates to its saved score. IC can therefore precede QA. For an IC-only rule with unchanged decisions,
+\begin{align}
+C_{\mathrm{first},i}&=I_i+(1-a_i)S_i+a_iT_i,\\
+C_{\mathrm{late},i}&=S_i+I_i+a_iT_i.
+\end{align}
+The saving is exactly $a_iS_i$. This subtraction cannot be applied wholesale to the original adaptive method: its cheap probe still needs ordinary-QA prefill.
+
+Calibration uses a common .05 threshold grid and the eight existing penalties. For weighted IC, top-right $p_{-1,-1}$ and the unweighted saved-matrix mean, it selects only direct small/strong endpoints, bypassing IC. The three signals share the same measured IC forward; simpler aggregation receives no invented large inference saving. Assessment component means are $S=.3485$, $T=1.6322$, $I=.1335$ and $P=.000473$ seconds, not the original-test cost distribution.
+
+\begin{table}[t]
+\centering\small
+\begin{tabular}{lrr}
+\toprule
+Unselected weighted .5 cut & EM & s/query \\
+\midrule
+Answer-first IC & 56.25\% & 1.6819 \\
+IC-first, identical choices & 56.25\% & 1.3990 \\
+Matched random preselection & 53.34\% & 1.3990 \\
+\bottomrule
+\end{tabular}
+\caption{\textbf{Development assessment, $n=128$.} The .5 cut was highlighted retrospectively, not calibration-selected. Its cost reduction is component-time replay, not a measured deployment improvement.}
+\label{tab:icfirst}
+\end{table}
+
+One \emph{retrospectively highlighted, unselected} .5 cut illustrates the architecture effect (Table~\ref{tab:icfirst}): moving IC first saves .2828\,s/query, or 16.8\%, with identical answers. It acquires IC on all questions and escalates on 99/128 (77.34\%), making 27 rescues and two harms. Assessment gain over matched random is $+2.91\pp$ with pointwise interval $[-1.47,7.12]$; calibration gain is $-5.28\pp$. The conflicting split behavior and inconclusive interval do not justify promotion to a fresh test.
+
+\begin{figure*}[t]
+\centering\includegraphics[width=\textwidth]{paper_pregeneration.pdf}
+\caption{\textbf{Development-only architecture audit.} Curves show all unselected fixed cuts; stars are calibration-selected direct endpoints. Circles mark the retrospectively highlighted .5 cut; the assessment horizontal segment links identical choices before/after generation. Positive assessment behavior conflicts with calibration. Prefill sensitivity and the unattainable oracle are discussed separately in the text.}
+\label{fig:audit}
+\end{figure*}
+
+Weighted IC's assessment correctness AUROC (.697) is not consistently better than top-right (.683) or unweighted (.745) aggregation. For cheap-prefill selective acquisition, let $F$ include QA prefill/feature extraction and $D$ answer continuation. Under retained QA KV,
+\begin{equation}
+C_{\mathrm{prefill},i}=F_i+P_i+b_iI_i+(1-a_i)D_i+a_iT_i.
+\end{equation}
+The cache measures only total $S$, not $F,D$. Sensitivity scenarios $F=\rho S$, $\rho\in\{0,.25,.5,1\}$, are assumptions, not measured timings or empirical bounds. Even including zero prefill, the largest selected assessment gain is $1.33\pp$. Its high-budget rule acquires IC for 10/128 questions and changes five choices, all correctness-neutral relative to the same cheap cut without IC. Separately tuned cheap thresholds cannot isolate IC's incremental value.
+
+QA cache reuse requires the same model and exact QA prefix, retained KV and valid continuation state. A different IC prompt cannot supply QA KV; neither can the other model. Our IC forward sets \texttt{use\_cache=False}. A reliable deployment comparison would require paired prefill/decoding, feature-transfer, CPU-probe and retained-KV/interposition timings. No such job was run after the unpromising development evidence.
+
+\section{Failure Analysis and Implications}
+\label{sec:failure}
+\paragraph{Correctness is a different target from benefit.}
+On the original test, correctness AUROC is .757 for the cheap probe and .676 for IC. Yet low-confidence rescue AUROC \emph{among the 376 small errors} is .392/.440. On assessment, the analogous values are .789/.697 for correctness and .405/.451 for rescue. These metrics use different conditioning sets; rescue among small errors omits harms on correct small answers and is not all-query signed-benefit prediction. Nevertheless, the weak rescue ranking explains why predicting likely errors need not identify valuable escalations.
+
+At original $\lambda=.4$, selected strong calls yield .360 net correct answers per call, barely above global .352, while costing 2.080\,s versus 1.865\,s overall. The targeting lift fails to recover small-first and IC cost. Nearness to a correctness threshold also does not directly estimate the value of acquiring IC. These are diagnostic associations, not a causal decomposition.
+
+\paragraph{Complementarity and the oracle ceiling.}
+The assessment cohort contains 42 both-correct, 50 both-wrong, 31 rescue and five harm cases. A free label-aware oracle could achieve 78/128 (60.94\%), versus strong-only 57.03\%. At that accuracy, minimum replay cost is .6123\,s for preselection and .7039\,s answer-first. This unattainable oracle shows headroom for better targeting, not a demonstrated system. It also cautions against generalizing observed random-mixture dominance to all routers.
+
+\paragraph{Interpreting the original negative finding.}
+Answer-first execution imposes avoidable cost for an IC-only rule. It does not invalidate the frozen adaptive-versus-cheap contrast: both original methods pay small QA. The architectural audit narrows that finding's scope without reversing it. Similarly, IC's useful local decision changes do not establish an equal-budget advantage. Confidence discrimination, counterfactual escalation benefit and the cost of obtaining information must be assessed jointly.
+
+\section{Conclusion}
+Selective IC acquisition does not satisfy the frozen statistical and practical criteria over cost-matched cheap routing for this answer-first Qwen cascade. A post-test independent baseline exposes unnecessary first-model generation; direct-benefit predictors fail their development gate. Pre-generation IC reduces one fixed rule's replayed cost, but its apparent gain lacks consistency and statistical resolution. The evidence supports preserving the negative result and its architectural qualification, not launching another confirmatory run. Cost-aware routing must predict useful incremental quality and recover the computation used to make that prediction.
+
+\section*{Limitations}
+The study concerns one dataset and one final model pair after feasibility screens. Four-bit quantization, FP32 compute, transferred IC settings, short-answer prompts and lexical exact match differ from the reference paper. Potential pretraining exposure, answer-format/alias errors and sparse truncation remain concerns. The 512-question test and eight partly duplicate settings do not exhaust routing possibilities; the coarse confidence grid can miss better policies.
+
+Both follow-ups reuse a 128-query assessment set; the .5 illustration was highlighted after replay. Post-test comparisons on the consumed original test cannot create new confirmation. Conditional bootstrap intervals omit training, hardware-repeat and exploratory-selection variability; pointwise intervals do not establish simultaneous dominance. Warm, sequential component measurements are not deployment latency. Prefill, retained-KV continuation, model residency, batching and queueing were not benchmarked.
+
+\section*{Responsible Use and Reproducibility}
+This is an educational factual-QA study, not a validated abstention or safety mechanism. A confidence score should not be interpreted as truth, and these results do not support deployment in high-stakes settings. No human participants or newly collected personal data are involved. Data/model terms and possible copyrighted or sensitive benchmark content still require care. We report compute actually used rather than equating warm service seconds with monetary or environmental savings.
+
+The submission archive contains source, prompts, configurations, saved aggregate results, tests and offline reproduction commands. It excludes API credentials, per-query caches, fitted checkpoints, LLM weights and unrelated dependency source. Full statistical replay needs separately controlled original caches and fitted router artifacts; their absence from the archive is explicit. Automated assistance was used for implementation, debugging and drafting; responsibility for the submitted work remains with the authors. No new research inference, fitting, policy search or test evaluation was performed for this paper preparation.
+
+\label{sec:mainend}
+\clearpage
+\bibliography{references}
+\clearpage
+\appendix
+
+\section{Exact Configuration and Prompts}
+\label{app:config}
+\begin{table*}[t]
+\centering\small
+\begin{tabular}{ll}
+\toprule
+Component & Exact revision or configuration \\
+\midrule
+TriviaQA & \texttt{0f7faf33a3908546c6fd5b73a660e0f8ff173c2f} \\
+Qwen2.5-1.5B-Instruct & \texttt{989aa7980e4cf806f80c7fef2b1adb7bc71aa306} \\
+Qwen2.5-14B-Instruct & \texttt{cf98f3b3bbb457ad9e2bb7baf9a0125b6b88caa8} \\
+IC released-code alignment & \texttt{5c15b32a6f9f36688098d0a749cb68bad11e9f23} \\
+Original frozen methods hash & \texttt{59ef6e267603260190ade5468e7e54d248c25ba11ababec32cdb276d220fa8ed} \\
+Quantization & NF4, double quantization; FP32 compute/nonquantized modules \\
+Decoding & Greedy, batch 1; first nonempty line/EOS, maximum 64 tokens \\
+Attention / device & Eager; sequential collection on T4 GPU0 \\
+IC & Question-only, no examples; last 6 tokens, all 29 states; $\alpha=1$ \\
+Probe & 1,536 prompt-prefill features; train-only scaling; logistic $C=.01$ \\
+\bottomrule
+\end{tabular}
+\caption{Pinned local-model resources. No paid API provider or API access date applies. Anonymous model/data availability was checked on 10 November 2026; those checks are not inference dates. Source artifacts retain collection provenance.}
+\label{tab:config}
+\end{table*}
+
+Additional frozen versions are datasets 3.1.0, numpy 2.1.3, tokenizers 0.20.3, safetensors 0.8.0, pyarrow 18.1.0 and pandas 2.2.3. Sampling uses a 10,000-example shuffle buffer; development seed is 4902, the original reserved-test construction uses seed 4901, and the benefit reservation uses its committed protocol. Earlier pilot/development exclusions are reconstructed from the pinned data and checked by ID and normalized question. Exact manifests/hashes, selected thresholds and seeds are retained in the corresponding JSON artifacts. Floating package requirements alone do not establish an identical inference environment.
+
+\paragraph{QA system prompt (verbatim).}
+\begin{quote}\small
+Answer the question with only the short entity answer. Do not explain.
+\end{quote}
+The QA user message is \texttt{Question: \{question\}}.
+
+\paragraph{IC system prompt (verbatim).}
+\begin{quote}\small
+You are a helpful assistant that assesses whether you can provide an accurate response to a question. Respond only with 'Yes' or 'No' to indicate whether you are capable of answering the following question.
+\end{quote}
+The IC user message is \texttt{<Question>: \{question\} </Question>}. The model's pinned chat template is applied with a generation prompt, but IC generates no tokens. Yes/No are single tokens with IDs 9454/2753. Only the saved final-window matrix supports the top-right and unweighted alternatives; full-vocabulary probability or unsaved positions cannot be reconstructed.
+
+\paragraph{Benefit predictors.}
+Query TF--IDF uses word unigrams/bigrams, minimum document frequency two, at most 8,000 features, sublinear TF and L2 normalization. Hidden features use train-only scaling. Ridge predictions clip benefit to $[-1,1]$ and predicted times below at .001\,s. The same selected regularization fits all three targets. The 1,024 missing strong training calls add 1,717.42 warm QA seconds, 308.57\,s loading and 2.02\,s warmup. Seven strong development answers hit the cap (five training, one calibration, one assessment).
+
+\section{Complete Fixed Benefit-Extension Grid}
+\label{app:benefit}
+Table~\ref{tab:benefitall} preserves all 16 assessment readouts. Exact cost matching is required by the gate; clipped strong endpoints cannot pass. Zero-width endpoint intervals do not prove zero population effect. Three identical near-strong preselection rules have a small positive observed mean difference; they fail the calibration and branch-count conditions. The protocol stops without examining the fresh reservation.
+
+\begin{table*}[t]
+\centering\small
+\begin{tabular}{llrrrrll}
+\toprule
+Method & $\lambda$ & Cal. gain (pp) & EM (\%) & s/query & Strong (\%) & Exact match & Gain (pp), familywise 95\% \\
+\midrule
+Preselection & 0 & +.000 & 57.03 & 1.6327 & 100.00 & No & $+.000\ [+.000,+.000]$ \\
+ & .025 & +.000 & 57.03 & 1.6241 & 99.22 & Yes & $+.128\ [+.000,+.720]$ \\
+ & .05 & +.237 & 57.03 & 1.6241 & 99.22 & Yes & $+.128\ [+.000,+.720]$ \\
+ & .1 & +.237 & 57.03 & 1.6241 & 99.22 & Yes & $+.128\ [+.000,+.720]$ \\
+ & .2 & +.000 & 57.03 & 1.6327 & 100.00 & No & $+.000\ [+.000,+.000]$ \\
+ & .4 & +.844 & 56.25 & 1.5899 & 96.88 & Yes & $-.113\ [-2.704,+1.530]$ \\
+ & .8 & +1.075 & 36.72 & .3669 & 1.56 & Yes & $-.290\ [-1.180,-.004]$ \\
+ & 1.6 & -.012 & 36.72 & .3490 & .00 & Yes & $-.008\ [-.013,-.003]$ \\
+\midrule
+Cascade & 0 & +.000 & 57.03 & 1.9613 & 98.44 & No & $+.000\ [+.000,+.000]$ \\
+ & .025 & +.000 & 57.03 & 1.9704 & 99.22 & No & $+.000\ [+.000,+.000]$ \\
+ & .05 & +.000 & 57.03 & 1.9809 & 100.00 & No & $+.000\ [+.000,+.000]$ \\
+ & .1 & +.000 & 57.03 & 1.9809 & 100.00 & No & $+.000\ [+.000,+.000]$ \\
+ & .2 & +.000 & 56.25 & 1.9689 & 99.22 & No & $-.781\ [-3.906,+.000]$ \\
+ & .4 & +.484 & 36.72 & .3488 & .00 & Yes & $-.004\ [-.006,-.001]$ \\
+ & .8 & +.484 & 36.72 & .3488 & .00 & Yes & $-.004\ [-.006,-.001]$ \\
+ & 1.6 & -.008 & 36.72 & .3488 & .00 & Yes & $-.004\ [-.006,-.001]$ \\
+\bottomrule
+\end{tabular}
+\caption{\textbf{Development only.} All fixed extension points, unmodified. Assessment intervals are the saved Bonferroni-16 paired intervals. No row passes the gate.}
+\label{tab:benefitall}
+\end{table*}
+
+\section{Artifact and Reproduction Boundaries}
+The original frozen test is tied to committed methods, inference-source hashes and the pre-test analysis addendum. Its raw records and measured CPU scoring times are needed for exact bootstrap replay; rerunning scoring on a different CPU changes measured costs. Saved summaries and vector figures are sufficient to inspect the principal claims and regenerate the paper's summary tables without model calls. The offline script in the clean code archive writes separate output files and never alters the frozen evaluations.
+
+The architecture audit was completed at repository commit \texttt{ffe94cf}; the consolidated report/presentation at \texttt{efc0fcc}; collaborator documentation at \texttt{2a2b48a}. This conference-format revision changes presentation only. Private caches and the preserved fresh-test manifests are deliberately excluded from the submission archive; access instructions and hash records remain in the reproducibility guide. This means a reviewer can inspect all reported aggregate claims without GPU inference, but cannot independently reconstruct every paired interval from the archive alone.
+
+The original correctness and rescue AUROC values condition on different populations; the former uses all queries, the latter only small-model errors. Benefit-extension rescue-versus-rest AUROC is yet another target and is not interchangeable with either. The architecture audit's free label-aware oracle and assumed prefill curves are diagnostics, not implemented deployable policies.
+
+\end{document}

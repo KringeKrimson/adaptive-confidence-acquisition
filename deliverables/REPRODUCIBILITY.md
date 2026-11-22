@@ -1,5 +1,50 @@
 # Reproducing the completed COMP4901B study
 
+## Course submission, 22 November 2026
+
+Submit [COMP4901B_report.pdf](COMP4901B_report.pdf) and
+[COMP4901B_code.zip](COMP4901B_code.zip). The PDF has eight main pages, one page of
+references and two appendix pages. [REPORT.tex](REPORT.tex) is the typesetting
+source; the older Markdown manuscript below remains the detailed evidence record.
+The official ACL style used by EMNLP is included unchanged from
+[`acl-org/acl-style-files`, commit d5adc823](https://github.com/acl-org/acl-style-files/tree/d5adc823ff0f80f98c80405ca0ab66c68e684409).
+A course-specific template was not found in the accessible workspace. The team
+author label needs the actual author list before submission.
+
+```bash
+python -m pip install -r requirements.txt
+python -m pip install -e . --no-deps
+python scripts/reproduce_paper.py --out outputs/paper-reproduction
+python scripts/build_paper.py --out outputs/paper-build
+python scripts/build_submission.py --out deliverables/COMP4901B_code.zip
+```
+
+The first script reads only tracked aggregate JSON, reproduces principal tables
+and three paper figure pairs, and copies saved intervals unchanged. It does not
+fit, bootstrap, select policies or access raw query caches. The PDF builder needs
+pdfLaTeX/BibTeX and checks the main-page limit and typesetting errors. It uses no
+proprietary presentation runtime. The `paper_figures/` variants improve label
+legibility; all six earlier figure pairs and original evaluations remain intact.
+
+The ZIP is built from an explicit whitelist with a per-file hash manifest. It
+omits raw data, per-query records/features/times, credentials, LLM weights, fitted
+probe/ridge checkpoints, dependency source and unrelated assignments. Its copies
+of `benefit_development.json` omit the two per-query prediction/timing fields;
+the repository original and all aggregate values/intervals are unchanged. Original
+policy thresholds and runtime settings are exported separately under
+`configurations/`, without fitted coefficients. This code-only archive therefore
+cannot perform full historical per-query replay without separately controlled
+caches and fitted method artifacts. It can regenerate the reported aggregate
+tables/figures immediately, and includes collection/evaluation code for independent
+work. Its README documents the Git snapshot requirement for the Kaggle generator.
+
+`requirements.txt` pins direct/critical CPU analysis and test dependencies;
+`requirements-gpu.txt` adds the historical CUDA build and quantization package.
+Neither is a full operating-system/Kaggle-image lock. No new research experiment
+was conducted while preparing these submission files.
+
+## Existing research records
+
 [REPORT.md](REPORT.md) is the consolidated manuscript.
 [COMP4901B_research.pptx](COMP4901B_research.pptx) is its 12-slide presentation.
 The [figures](figures/) contain six PNG/PDF pairs. Earlier summaries and the

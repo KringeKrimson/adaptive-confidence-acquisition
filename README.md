@@ -3,7 +3,10 @@
 Completed COMP4901B research using **Qwen2.5-1.5B-Instruct → Qwen2.5-14B-Instruct**
 on closed-book TriviaQA.
 
-- [Consolidated research report](deliverables/REPORT.md)
+- [Course report: EMNLP/ACL-style PDF](deliverables/COMP4901B_report.pdf)
+- [Editable LaTeX report source](deliverables/REPORT.tex)
+- [Clean course code archive](deliverables/COMP4901B_code.zip)
+- [Full consolidated evidence manuscript](deliverables/REPORT.md)
 - [12-slide editable presentation](deliverables/COMP4901B_research.pptx)
 - [Publication figures: six PNG/PDF pairs](deliverables/figures/)
 - [Reproducibility guide and evidence map](deliverables/REPRODUCIBILITY.md)
@@ -19,7 +22,34 @@ The report consolidates all completed findings through audit commit `ffe94cf`.
 The [earlier group summary](RESEARCH_SUMMARY.md) and
 [standalone development audit](deliverables/PREGENERATION_AUDIT.md) remain historical
 records. No further GPU experiments, model training or routing searches are planned.
-Only author details and course-specific submission formatting/timing remain.
+The conference-format PDF has eight main-text pages, one reference page and two
+appendix pages. Only the final author list and any course-specific disclosure
+requirements remain. The course's separately included template was not available
+in the accessible workspace; the PDF uses the official, unchanged ACL style used
+by EMNLP, pinned at `d5adc823ff0f80f98c80405ca0ab66c68e684409`.
+
+## Course submission and offline reproduction
+
+Submit `deliverables/COMP4901B_report.pdf` and `deliverables/COMP4901B_code.zip`.
+The ZIP deliberately excludes fitted router checkpoints as well as raw data,
+per-query caches, credentials, LLM weights and dependency source. It retains
+threshold configurations, prompts, evaluation code and aggregate numerical
+results. Its own README explains the resulting full-replay boundary.
+
+```bash
+python -m pip install -r requirements.txt
+python -m pip install -e . --no-deps
+python scripts/reproduce_paper.py --out outputs/paper-reproduction
+python scripts/build_paper.py --out outputs/paper-build
+python scripts/build_submission.py --out deliverables/COMP4901B_code.zip
+```
+
+These commands use saved summaries, without GPU inference, fitting, policy search
+or new test evaluation. The first script regenerates the paper's three figure
+pairs and principal tables; intervals are copied from the saved evaluations.
+PDF compilation additionally needs a standard TeX distribution with pdfLaTeX and
+BibTeX. `requirements-gpu.txt` records the historical CUDA package requirements
+for optional independent inference; it is not needed for aggregate reproduction.
 
 ## Collaborator setup
 
