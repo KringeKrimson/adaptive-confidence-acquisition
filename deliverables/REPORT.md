@@ -8,7 +8,7 @@ It has eight main-text pages, plus references and appendices. This Markdown file
 retains the full consolidated evidence manuscript; frozen numerical records are
 unchanged.
 
-**Authors:** [complete author names and affiliations]
+**Authors:** Sushobhan Rai and Noah Breidung, The Hong Kong University of Science and Technology
 
 ## Abstract
 

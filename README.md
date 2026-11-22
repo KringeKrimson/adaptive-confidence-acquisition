@@ -23,10 +23,10 @@ The [earlier group summary](RESEARCH_SUMMARY.md) and
 [standalone development audit](deliverables/PREGENERATION_AUDIT.md) remain historical
 records. No further GPU experiments, model training or routing searches are planned.
 The conference-format PDF has eight main-text pages, one reference page and two
-appendix pages. Only the final author list and any course-specific disclosure
-requirements remain. The course's separately included template was not available
-in the accessible workspace; the PDF uses the official, unchanged ACL style used
-by EMNLP, pinned at `d5adc823ff0f80f98c80405ca0ab66c68e684409`.
+appendix pages. Authors: **Sushobhan Rai and Noah Breidung**. The PDF uses the
+official, unchanged ACL style used by EMNLP, approved for this report and pinned
+at `d5adc823ff0f80f98c80405ca0ab66c68e684409`. Check any additional course-specific
+disclosure requirements before submission.
 
 ## Course submission and offline reproduction
 

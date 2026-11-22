@@ -8,8 +8,8 @@ references and two appendix pages. [REPORT.tex](REPORT.tex) is the typesetting
 source; the older Markdown manuscript below remains the detailed evidence record.
 The official ACL style used by EMNLP is included unchanged from
 [`acl-org/acl-style-files`, commit d5adc823](https://github.com/acl-org/acl-style-files/tree/d5adc823ff0f80f98c80405ca0ab66c68e684409).
-A course-specific template was not found in the accessible workspace. The team
-author label needs the actual author list before submission.
+The official style was approved for this report. The author block lists
+Sushobhan Rai and Noah Breidung with the existing HKUST affiliation.
 
 ```bash
 python -m pip install -r requirements.txt
@@ -245,8 +245,8 @@ After validation, the final writing workflow replaces the existing deliverable
 with the validated file. Charts/tables remain native and editable. Chart data uses
 12 significant digits for workbook portability; analytical JSON retains full precision.
 Structural/import checks and visual review do not establish native PowerPoint or
-Google Slides compatibility. Author names and course-specific format/timing are
-the only remaining submission details.
+Google Slides compatibility. Check any course-specific presentation format/timing
+requirements before submission.
 
 ## Collaborator audit, 10 November 2026
 

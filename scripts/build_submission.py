@@ -44,7 +44,7 @@ python scripts/build_paper.py --out outputs/paper-build
 The source is `deliverables/REPORT.tex`, with the official, unchanged ACL style
 used by EMNLP (acl-org/acl-style-files commit
 `d5adc823ff0f80f98c80405ca0ab66c68e684409`). The builder checks for 6--8 main pages, unresolved citations and
-overfull boxes. The team author block still needs the final author names.
+overfull boxes. Authors: Sushobhan Rai and Noah Breidung.
 
 ## Configurations, prompts and evaluation
 
