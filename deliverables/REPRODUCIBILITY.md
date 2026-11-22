@@ -43,6 +43,13 @@ work. Its README documents the Git snapshot requirement for the Kaggle generator
 Neither is a full operating-system/Kaggle-image lock. No new research experiment
 was conducted while preparing these submission files.
 
+Submission validation used a separately extracted ZIP and fresh CPU environment:
+pinned installation, `pip check`, all 47 offline tests, aggregate table/figure
+regeneration and PDF compilation passed. The rebuilt PDF has identical extracted
+text on all 11 pages. Archive hashes/exclusions and a redacted Gitleaks scan passed;
+no credential candidates were detected. The original scientific files and six
+legacy figure pairs retain their recorded hashes.
+
 ## Existing research records
 
 [REPORT.md](REPORT.md) is the consolidated manuscript.
